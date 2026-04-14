@@ -21,8 +21,8 @@ func (adap *BybitAdapter) GetName() string {
 	return "Bybit"
 }
 
-func (adap *BybitAdapter) GetPrice(symbol string) (float64, error) {
-	url := fmt.Sprintf("https://api.bybit.com/v5/market/tickers?category=spot&symbol=%sUSDT", symbol)
+func (adap *BybitAdapter) GetPrice(coinName string) (float64, error) {
+	url := fmt.Sprintf("https://api.bybit.com/v5/market/tickers?category=spot&symbol=%sUSDT", coinName)
 
 	resp, err := adap.client.Get(url)
 	if err != nil {

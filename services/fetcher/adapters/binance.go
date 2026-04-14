@@ -21,8 +21,8 @@ func (adap *BinanceAdapter) GetName() string {
 	return "Binance"
 }
 
-func (adap *BinanceAdapter) GetPrice(symbol string) (float64, error) {
-	url := fmt.Sprintf("https://api.binance.com/api/v3/ticker/price?symbol=%sUSDT", symbol)
+func (adap *BinanceAdapter) GetPrice(coinName string) (float64, error) {
+	url := fmt.Sprintf("https://api.binance.com/api/v3/ticker/price?symbol=%sUSDT", coinName)
 
 	resp, err := adap.client.Get(url)
 	if err != nil {
