@@ -37,7 +37,7 @@ func (s *FetcherService) CollectPrices(coinName string) {
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 
-	prices := make(map[string]float64)
+	prices := make(map[string]contracts.BidAsk)
 
 	for _, ex := range s.exchanges {
 		wg.Go(func() {

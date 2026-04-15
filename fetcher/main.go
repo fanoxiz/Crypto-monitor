@@ -28,7 +28,6 @@ func main() {
 		api.NewBinanceAdapter(openedClient),
 		api.NewBybitAdapter(openedClient),
 		api.NewCoinbaseAdapter(openedClient),
-		// adapters.NewKrakenAdapter(openedClient), doesn't work in Russia
 		api.NewOKXAdapter(openedClient),
 	}
 
