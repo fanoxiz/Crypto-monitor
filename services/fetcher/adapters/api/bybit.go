@@ -1,4 +1,4 @@
-package adapters
+package api
 
 import (
 	"net/http"
@@ -63,4 +63,3 @@ func (adap *BybitAdapter) GetPrice(coinName string) (float64, error) {
 
 	return price, nil
 }
-

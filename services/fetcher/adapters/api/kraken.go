@@ -1,4 +1,6 @@
-package adapters
+//go:build false
+
+package api
 
 import (
 	"encoding/json"
