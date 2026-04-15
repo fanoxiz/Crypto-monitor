@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
+
+	"github.com/fanoxiz/crypto-monitor/contracts"
 )
 
 type CoinbaseAdapter struct {
@@ -22,37 +23,38 @@ func (adap *CoinbaseAdapter) GetName() string {
 	return "Coinbase"
 }
 
-func (adap *CoinbaseAdapter) GetPrice(coinName string) (float64, error) {
-	productID := fmt.Sprintf("%s-USDT", strings.ToUpper(coinName))
-	url := fmt.Sprintf("https://api.exchange.coinbase.com/products/%s/ticker", productID)
+func (adap *CoinbaseAdapter) GetPrice(coinName string) (contracts.BidAsk, error) {
+	url := fmt.Sprintf("https://api.exchange.coinbase.com/products/%s-USDT/ticker", coinName)
 
 	resp, err := adap.client.Get(url)
 	if err != nil {
-		return 0, err
+		return contracts.BidAsk{}, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return 0, fmt.Errorf("wrong resp.StatusCode: %d", resp.StatusCode)
+		return contracts.BidAsk{}, fmt.Errorf("wrong resp.StatusCode: %d", resp.StatusCode)
 	}
 
 	var apiResp struct {
-		Price string `json:"price"`
+		Bid string `json:"bid"`
+		Ask string `json:"ask"`
 	}
 
 	err = json.NewDecoder(resp.Body).Decode(&apiResp)
 	if err != nil {
-		return 0, err
+		return contracts.BidAsk{}, err
 	}
 
-	if apiResp.Price == "" {
-		return 0, fmt.Errorf("empty price for product: %s", productID)
+	if apiResp.Bid == "" || apiResp.Ask == "" {
+		return contracts.BidAsk{}, fmt.Errorf("empty bid/ask for product: %s", coinName)
 	}
 
-	price, err := strconv.ParseFloat(apiResp.Price, 64)
-	if err != nil {
-		return 0, err
-	}
+	bid, err := strconv.ParseFloat(apiResp.Bid, 64)
+	ask, err := strconv.ParseFloat(apiResp.Ask, 64)
 
-	return price, nil
+	if err == nil {
+		return contracts.BidAsk{Bid: bid, Ask: ask}, nil
+	}
+	return contracts.BidAsk{}, err
 }

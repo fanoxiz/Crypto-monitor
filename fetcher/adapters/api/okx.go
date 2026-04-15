@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
+
+	"github.com/fanoxiz/crypto-monitor/contracts"
 )
 
 type OKXAdapter struct {
@@ -22,18 +23,17 @@ func (adap *OKXAdapter) GetName() string {
 	return "OKX"
 }
 
-func (adap *OKXAdapter) GetPrice(coinName string) (float64, error) {
-	instID := fmt.Sprintf("%s-USDT", strings.ToUpper(coinName))
-	url := fmt.Sprintf("https://www.okx.com/api/v5/market/ticker?instId=%s", instID)
+func (adap *OKXAdapter) GetPrice(coinName string) (contracts.BidAsk, error) {
+	url := fmt.Sprintf("https://www.okx.com/api/v5/market/ticker?instId=%s-USDT", coinName)
 
 	resp, err := adap.client.Get(url)
 	if err != nil {
-		return 0, err
+		return contracts.BidAsk{}, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return 0, fmt.Errorf("wrong resp.StatusCode: %d", resp.StatusCode)
+		return contracts.BidAsk{}, fmt.Errorf("wrong resp.StatusCode: %d", resp.StatusCode)
 	}
 
 	var apiResp struct {
@@ -41,27 +41,29 @@ func (adap *OKXAdapter) GetPrice(coinName string) (float64, error) {
 		Msg  string `json:"msg"`
 		Data []struct {
 			InstID string `json:"instId"`
-			Last   string `json:"last"`
+			BidPx  string `json:"bidPx"`
+			AskPx  string `json:"askPx"`
 		} `json:"data"`
 	}
 
 	err = json.NewDecoder(resp.Body).Decode(&apiResp)
 	if err != nil {
-		return 0, err
+		return contracts.BidAsk{}, err
 	}
 
 	if apiResp.Code != "0" {
-		return 0, fmt.Errorf("okx error code: %s, msg: %s", apiResp.Code, apiResp.Msg)
+		return contracts.BidAsk{}, fmt.Errorf("okx error code: %s, msg: %s", apiResp.Code, apiResp.Msg)
 	}
 
 	if len(apiResp.Data) == 0 {
-		return 0, fmt.Errorf("empty data for instId: %s", instID)
+		return contracts.BidAsk{}, fmt.Errorf("empty data for instId: %s", coinName)
 	}
 
-	price, err := strconv.ParseFloat(apiResp.Data[0].Last, 64)
-	if err != nil {
-		return 0, err
-	}
+	bid, err := strconv.ParseFloat(apiResp.Data[0].BidPx, 64)
+	ask, err := strconv.ParseFloat(apiResp.Data[0].AskPx, 64)
 
-	return price, nil
+	if err == nil {
+		return contracts.BidAsk{Bid: bid, Ask: ask}, nil
+	}
+	return contracts.BidAsk{}, err
 }

@@ -6,7 +6,7 @@ import (
 
 type ExchangeAdapter interface {
 	GetName() string
-	GetPrice(symbol string) (float64, error)
+	GetPrice(symbol string) (contracts.BidAsk, error)
 }
 
 type Sender interface {

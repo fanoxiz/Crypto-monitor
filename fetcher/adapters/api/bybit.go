@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+
+	"github.com/fanoxiz/crypto-monitor/contracts"
 )
 
 type BybitAdapter struct {
@@ -21,17 +23,17 @@ func (adap *BybitAdapter) GetName() string {
 	return "Bybit"
 }
 
-func (adap *BybitAdapter) GetPrice(coinName string) (float64, error) {
+func (adap *BybitAdapter) GetPrice(coinName string) (contracts.BidAsk, error) {
 	url := fmt.Sprintf("https://api.bybit.com/v5/market/tickers?category=spot&symbol=%sUSDT", coinName)
 
 	resp, err := adap.client.Get(url)
 	if err != nil {
-		return 0, err
+		return contracts.BidAsk{}, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return 0, fmt.Errorf("wrong resp.StatusCode: %d", resp.StatusCode)
+		return contracts.BidAsk{}, fmt.Errorf("wrong resp.StatusCode: %d", resp.StatusCode)
 	}
 
 	var apiResp struct {
@@ -40,26 +42,32 @@ func (adap *BybitAdapter) GetPrice(coinName string) (float64, error) {
 		Result  struct {
 			List []struct {
 				Symbol    string `json:"symbol"`
-				LastPrice string `json:"lastPrice"`
+				Bid1Price string `json:"bid1Price"`
+				Ask1Price string `json:"ask1Price"`
 			} `json:"list"`
 		} `json:"result"`
 	}
 
 	err = json.NewDecoder(resp.Body).Decode(&apiResp)
 	if err != nil {
-		return 0, err
+		return contracts.BidAsk{}, err
 	}
 
 	if apiResp.RetCode != 0 {
-		return 0, fmt.Errorf("wrong resp.StatusCode: %d", apiResp.RetCode)
+		return contracts.BidAsk{}, fmt.Errorf("wrong resp.StatusCode: %d", apiResp.RetCode)
+	}
+
+	if len(apiResp.Result.List) == 0 {
+		return contracts.BidAsk{}, fmt.Errorf("empty ticker list for coin: %s", coinName)
 	}
 
 	item := apiResp.Result.List[0]
 
-	price, err := strconv.ParseFloat(item.LastPrice, 64)
-	if err != nil {
-		return 0, err
-	}
+	bid, err := strconv.ParseFloat(item.Bid1Price, 64)
+	ask, err := strconv.ParseFloat(item.Ask1Price, 64)
 
-	return price, nil
+	if err == nil {
+		return contracts.BidAsk{Bid: bid, Ask: ask}, nil
+	}
+	return contracts.BidAsk{}, err
 }
