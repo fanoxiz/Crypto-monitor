@@ -1,9 +1,9 @@
 package api
 
 import (
-	"net/http"
-	"fmt"
 	"encoding/json"
+	"fmt"
+	"net/http"
 	"strconv"
 )
 
@@ -31,7 +31,7 @@ func (adap *BybitAdapter) GetPrice(coinName string) (float64, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return 0, fmt.Errorf("Wrong resp.StatusCode: %d", resp.StatusCode)
+		return 0, fmt.Errorf("wrong resp.StatusCode: %d", resp.StatusCode)
 	}
 
 	var apiResp struct {
@@ -51,7 +51,7 @@ func (adap *BybitAdapter) GetPrice(coinName string) (float64, error) {
 	}
 
 	if apiResp.RetCode != 0 {
-		return 0, fmt.Errorf("Wrong resp.StatusCode: %d", apiResp.RetCode)
+		return 0, fmt.Errorf("wrong resp.StatusCode: %d", apiResp.RetCode)
 	}
 
 	item := apiResp.Result.List[0]
