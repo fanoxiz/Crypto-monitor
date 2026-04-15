@@ -33,7 +33,7 @@ func (adap *CoinbaseAdapter) GetPrice(coinName string) (float64, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return 0, fmt.Errorf("Wrong resp.StatusCode: %d", resp.StatusCode)
+		return 0, fmt.Errorf("wrong resp.StatusCode: %d", resp.StatusCode)
 	}
 
 	var apiResp struct {
