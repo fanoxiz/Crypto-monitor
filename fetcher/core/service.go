@@ -59,8 +59,8 @@ func (s *FetcherService) CollectPrices(coinName string) {
 	}
 
 	msg := contracts.MarketTickerInfo{
-		Coin:   coinName,
-		Prices: prices,
+		CoinName: coinName,
+		Prices:   prices,
 	}
 
 	if err := s.sender.Send(msg); err != nil {

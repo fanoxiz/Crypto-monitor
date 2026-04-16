@@ -6,6 +6,6 @@ type BidAsk struct {
 }
 
 type MarketTickerInfo struct {
-	Coin   string            `json:"coin"`
-	Prices map[string]BidAsk `json:"prices"`
+	CoinName string            `json:"coin"`
+	Prices   map[string]BidAsk `json:"prices"`
 }

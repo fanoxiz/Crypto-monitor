@@ -22,7 +22,6 @@ func NewSenderService(client *http.Client, endpoint string) *SenderService {
 }
 
 func (s *SenderService) Send(msg contracts.MarketTickerInfo) error {
-	fmt.Println("ОТПРАВЛЕНО:", msg)
 	data, err := json.Marshal(msg)
 	if err != nil {
 		return fmt.Errorf("marshal error: %w", err)
