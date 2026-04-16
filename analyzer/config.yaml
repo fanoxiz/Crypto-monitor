@@ -1,0 +1,14 @@
+port: "8081"
+fees:
+  Binance: 0.0005
+  Bybit: 0.0005
+  OKX: 0.0005
+  Coinbase: 0.004
+
+# # real fees:
+# port: "8081"
+# fees:
+#   Binance: 0.001
+#   Bybit: 0.001
+#   OKX: 0.001
+#   Coinbase: 0.004
