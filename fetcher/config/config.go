@@ -5,36 +5,25 @@ import (
 	"strings"
 	"time"
 
-	"github.com/spf13/viper"
+	"github.com/ilyakaznacheev/cleanenv"
 )
 
 type Config struct {
-	TrackedCoins      []string      `mapstructure:"tracked_coins"`
-	RequestFrequency  time.Duration `mapstructure:"request_frequency"`
-	AnalyzerEndpoint  string        `mapstructure:"analyzer_url"`
-	HTTPClientTimeout time.Duration `mapstructure:"http_client_timeout"`
+	TrackedCoins      []string      `yaml:"tracked_coins" env:"TRACKED_COINS" env-required:"true"`
+	RequestFrequency  time.Duration `yaml:"request_frequency" env:"REQUEST_FREQUENCY" env-default:"1s"`
+	AnalyzerEndpoint  string        `yaml:"analyzer_url" env:"ANALYZER_URL" env-required:"true"`
+	HTTPClientTimeout time.Duration `yaml:"http_client_timeout" env:"HTTP_CLIENT_TIMEOUT" env-default:"2s"`
 }
 
 func Load(path string) (Config, error) {
-	v := viper.New()
-	v.SetConfigFile(path)
-	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
-	v.AutomaticEnv()
-
-	if err := v.ReadInConfig(); err != nil {
-		return Config{}, fmt.Errorf("error reading config: %w", err)
-	}
-
 	var cfg Config
-	if err := v.Unmarshal(&cfg); err != nil {
-		return Config{}, fmt.Errorf("error parsing config: %w", err)
+
+	if err := cleanenv.ReadConfig(path, &cfg); err != nil {
+		return Config{}, fmt.Errorf("config error: %w", err)
 	}
 
-	if len(cfg.TrackedCoins) == 0 {
-		return Config{}, fmt.Errorf("tracked_coins is empty")
-	}
-	if cfg.AnalyzerEndpoint == "" {
-		return Config{}, fmt.Errorf("analyzer_url is empty")
+	for i, coin := range cfg.TrackedCoins {
+		cfg.TrackedCoins[i] = strings.ToUpper(strings.TrimSpace(coin))
 	}
 
 	return cfg, nil
