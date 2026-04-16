@@ -2,68 +2,62 @@ package core
 
 import (
 	"log"
-	"sync"
 	"time"
 
-	"github.com/fanoxiz/crypto-monitor/contracts" // allowed core dependency
+	"github.com/fanoxiz/crypto-monitor/contracts"
 )
 
 type FetcherService struct {
-	exchanges []ExchangeAdapter
-	sender    Sender
+	exchanges  []ExchangeAdapter
+	sender     Sender
+	streamChan chan contracts.MarketTickerInfo
 }
 
 func NewFetcherService(exchanges []ExchangeAdapter, sender Sender) *FetcherService {
 	return &FetcherService{
-		exchanges: exchanges,
-		sender:    sender,
+		exchanges:  exchanges,
+		sender:     sender,
+		streamChan: make(chan contracts.MarketTickerInfo, 100),
 	}
 }
 
 func (s *FetcherService) Start(coins []string, freq time.Duration) {
+	go s.senderWorker()
+
 	ticker := time.NewTicker(freq)
 	defer ticker.Stop()
 
 	for {
 		<-ticker.C
 		for _, coin := range coins {
-			// TODO: parallel collection
-			s.CollectPrices(coin)
+			for _, ex := range s.exchanges {
+				go s.fetchSingle(coin, ex)
+			}
 		}
 	}
 }
 
-func (s *FetcherService) CollectPrices(coinName string) {
-	var wg sync.WaitGroup
-	var mu sync.Mutex
-
-	prices := make(map[string]contracts.BidAsk)
-
-	for _, ex := range s.exchanges {
-		wg.Go(func() {
-			price, err := ex.GetPrice(coinName)
-			if err != nil {
-				log.Printf("[%s] Ошибка на %s: %v", coinName, ex.GetName(), err)
-				return
-			}
-
-			mu.Lock()
-			defer mu.Unlock()
-			prices[ex.GetName()] = price
-		})
-	}
-
-	wg.Wait()
-	if len(prices) < 2 {
+func (s *FetcherService) fetchSingle(coin string, ex ExchangeAdapter) {
+	price, err := ex.GetPrice(coin)
+	if err != nil {
+		log.Printf("[%s] Ошибка на %s: %v", coin, ex.GetName(), err)
 		return
 	}
 
 	msg := contracts.MarketTickerInfo{
-		CoinName: coinName,
-		Prices:   prices,
+		CoinName: coin,
+		Prices: map[string]contracts.BidAsk{
+			ex.GetName(): price,
+		},
 	}
 
-	if err := s.sender.Send(msg); err != nil {
-		log.Printf("Ошибка при отправке данных по %s: %v", coinName, err)
+	s.streamChan <- msg
+}
+
+func (s *FetcherService) senderWorker() {
+	for msg := range s.streamChan {
+		if err := s.sender.Send(msg); err != nil {
+			log.Printf("Ошибка при отправке в Analyzer: %v", err)
+		}
 	}
 }
