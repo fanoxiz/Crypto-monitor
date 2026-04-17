@@ -25,6 +25,5 @@ services:
       dockerfile: fetcher/Dockerfile
     environment:
       - ANALYZER_URL=http://analyzer:8081/prices
-      - TRACKED_COINS=BTC,ETH,SOL 
     depends_on:
       - analyzer
