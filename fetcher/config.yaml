@@ -3,4 +3,4 @@ tracked_coins:
   - ETH
 request_frequency: 1s
 analyzer_url: http://localhost:8081/prices
-http_client_timeout: 2s
+http_client_timeout: 4s

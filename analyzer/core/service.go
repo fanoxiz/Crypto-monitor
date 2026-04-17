@@ -14,6 +14,7 @@ type coinPriceState struct {
 	prices map[string]contracts.BidAsk
 }
 
+// [Coin]StateWithOwnMutex
 type priceCache map[string]*coinPriceState
 
 type AnalyzerService struct {
@@ -103,11 +104,9 @@ func (a *AnalyzerService) analyzeCoin(coin string) {
 				Timestamp:     time.Now().UTC(),
 			}
 
-			go func(d contracts.ProfitDealInfo) {
-				if err := a.sender.Send(d); err != nil {
-					log.Printf("Ошибка отправки сделки: %v", err)
-				}
-			}(deal)
+			if err := a.sender.Send(deal); err != nil {
+				log.Printf("Ошибка отправки сделки: %v", err)
+			}
 		}
 	}
 }
