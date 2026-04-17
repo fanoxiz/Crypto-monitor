@@ -1,10 +1,10 @@
 package core
 
 import (
-	_ "fmt"
 	"log"
 	"math"
 	"sync"
+	"time"
 
 	"github.com/fanoxiz/crypto-monitor/contracts" // allowed core dependency
 )
@@ -13,15 +13,17 @@ import (
 type priceCache map[string]map[string]contracts.BidAsk
 
 type AnalyzerService struct {
-	fees  map[string]float64
-	cache priceCache
-	mu    sync.RWMutex
+	fees   map[string]float64
+	cache  priceCache
+	mu     sync.RWMutex
+	sender DealSender
 }
 
-func NewAnalyzerService(fees map[string]float64) *AnalyzerService {
+func NewAnalyzerService(fees map[string]float64, sender DealSender) *AnalyzerService {
 	return &AnalyzerService{
-		fees:  fees,
-		cache: make(priceCache),
+		fees:   fees,
+		cache:  make(priceCache),
+		sender: sender,
 	}
 }
 
@@ -77,9 +79,20 @@ func (a *AnalyzerService) analyzeCoin(coin string) {
 		profitPerc = (profitAbs / minAsk) * 100
 
 		if profitPerc > 0 {
-			log.Printf("[%s] Куплено на %s (%.2f) | Продано на %s (%.2f) | Профит: +%.3f%% ($%.2f)",
-				coin, minAskExchange, minAsk, maxBidExchange, maxBid, profitPerc, profitAbs)
+			deal := contracts.ProfitDealInfo{
+				CoinName:      coin,
+				AskExchange:   minAskExchange,
+				BifExchange:   maxBidExchange,
+				AskPrice:      minAsk,
+				BidPrice:      maxBid,
+				ProfitAbs:     profitAbs,
+				ProfitPercent: profitPerc,
+				Timestamp:     time.Now().UTC(),
+			}
+
+			if err := a.sender.Send(deal); err != nil {
+				log.Printf("Ошибка отправки сделки в Executor: %v", err)
+			}
 		}
-		// TODO: sending to another service
 	}
 }

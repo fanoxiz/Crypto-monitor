@@ -9,6 +9,6 @@ type ExchangeAdapter interface {
 	GetPrice(symbol string) (contracts.BidAsk, error)
 }
 
-type Sender interface {
+type PriceSender interface {
 	Send(msg contracts.MarketTickerInfo) error
 }
