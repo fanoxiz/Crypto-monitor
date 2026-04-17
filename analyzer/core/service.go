@@ -14,7 +14,6 @@ type coinPriceState struct {
 	prices map[string]contracts.BidAsk
 }
 
-// [Coin]StateWithOwnMutex
 type priceCache map[string]*coinPriceState
 
 type AnalyzerService struct {
