@@ -1,12 +1,13 @@
 port: "8081"
+executor_url: "http://localhost:8082/deals"
+http_client_timeout: 2s
 fees:
-  Binance: 0.0005
-  Bybit: 0.0005
-  OKX: 0.0005
+  Binance: 0.0001
+  Bybit: 0.0001
+  OKX: 0.0001
   Coinbase: 0.004
 
 # # real fees:
-# port: "8081"
 # fees:
 #   Binance: 0.001
 #   Bybit: 0.001

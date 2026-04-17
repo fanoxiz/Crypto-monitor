@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  executor:
+    build:
+      context: .
+      dockerfile: executor/Dockerfile
+    ports:
+      - "8082:8082"
+
+  analyzer:
+    build:
+      context: .
+      dockerfile: analyzer/Dockerfile
+    ports:
+      - "8081:8081"
+    environment:
+      - EXECUTOR_URL=http://executor:8082/deals
+    depends_on:
+      - executor
+
+  fetcher:
+    build:
+      context: .
+      dockerfile: fetcher/Dockerfile
+    environment:
+      - ANALYZER_URL=http://analyzer:8081/prices
+      - TRACKED_COINS=BTC,ETH,SOL 
+    depends_on:
+      - analyzer

@@ -9,11 +9,11 @@ import (
 
 type FetcherService struct {
 	exchanges  []ExchangeAdapter
-	sender     Sender
+	sender     PriceSender
 	streamChan chan contracts.MarketTickerInfo
 }
 
-func NewFetcherService(exchanges []ExchangeAdapter, sender Sender) *FetcherService {
+func NewFetcherService(exchanges []ExchangeAdapter, sender PriceSender) *FetcherService {
 	return &FetcherService{
 		exchanges:  exchanges,
 		sender:     sender,
