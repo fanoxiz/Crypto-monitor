@@ -4,10 +4,10 @@ http_client_timeout: 2s
 
 # # testing fees
 # fees:
-#   Binance: 0.0001
-#   Bybit: 0.0001
-#   OKX: 0.0001
-#   Coinbase: 0.0001
+#   Binance: 0.0
+#   Bybit: 0.0
+#   OKX: 0.0
+#   Coinbase: 0.0
 
 # real vip fees:
 fees:

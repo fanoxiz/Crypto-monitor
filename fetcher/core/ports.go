@@ -1,7 +1,7 @@
 package core
 
 import (
-	"github.com/fanoxiz/crypto-monitor/contracts" // allowed core dependency
+	"github.com/fanoxiz/crypto-monitor/contracts"
 )
 
 type ExchangeAdapter interface {

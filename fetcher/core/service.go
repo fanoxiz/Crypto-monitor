@@ -4,7 +4,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/fanoxiz/crypto-monitor/contracts"
+	"github.com/fanoxiz/crypto-monitor/contracts" // allowed core dependency
 )
 
 type FetcherService struct {
@@ -45,10 +45,9 @@ func (s *FetcherService) fetchSingle(coin string, ex ExchangeAdapter) {
 	}
 
 	msg := contracts.MarketTickerInfo{
-		CoinName: coin,
-		Prices: map[string]contracts.BidAsk{
-			ex.GetName(): price,
-		},
+		CoinName:     coin,
+		ExchangeName: ex.GetName(),
+		Price:        price,
 	}
 
 	s.streamChan <- msg
