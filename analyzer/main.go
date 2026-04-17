@@ -28,7 +28,7 @@ func main() {
 
 	senderService := sender.NewSenderService(openedClient, cfg.ExecutorEndpoint)
 	analyzerService := core.NewAnalyzerService(cfg.Fees, senderService)
-	receiver := receiver.NewHTTPReceiver(analyzerService) // One day - NewgRPCReceiver
+	receiver := receiver.NewHTTPReceiver(analyzerService)
 
 	if err := receiver.Start(cfg.Port); err != nil {
 		log.Fatalf("Ошибка запуска сервера: %v", err)

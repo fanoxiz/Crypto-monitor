@@ -15,7 +15,7 @@ type MarketTickerInfo struct {
 type ProfitDealInfo struct {
 	CoinName      string    `json:"coin"`
 	AskExchange   string    `json:"buy_exchange"`
-	BifExchange   string    `json:"sell_exchange"`
+	BidExchange   string    `json:"sell_exchange"`
 	AskPrice      float64   `json:"buy_price"`
 	BidPrice      float64   `json:"sell_price"`
 	ProfitAbs     float64   `json:"profit_abs"`

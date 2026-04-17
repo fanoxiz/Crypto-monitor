@@ -9,14 +9,19 @@ import (
 	"github.com/fanoxiz/crypto-monitor/contracts" // allowed core dependency
 )
 
-// [Coin][Exchange]Price
-type priceCache map[string]map[string]contracts.BidAsk
+type coinPriceState struct {
+	mu     sync.RWMutex
+	prices map[string]contracts.BidAsk
+}
+
+// [Coin]StateWithOwnMutex
+type priceCache map[string]*coinPriceState
 
 type AnalyzerService struct {
-	fees   map[string]float64
-	cache  priceCache
-	mu     sync.RWMutex
-	sender DealSender
+	fees    map[string]float64
+	cache   priceCache
+	cacheMu sync.RWMutex
+	sender  DealSender
 }
 
 func NewAnalyzerService(fees map[string]float64, sender DealSender) *AnalyzerService {
@@ -28,24 +33,35 @@ func NewAnalyzerService(fees map[string]float64, sender DealSender) *AnalyzerSer
 }
 
 func (a *AnalyzerService) ProcessPrices(msg contracts.MarketTickerInfo) error {
-	a.mu.Lock()
+	coinState := a.getOrCreateCoinState(msg.CoinName)
 
-	if _, exists := a.cache[msg.CoinName]; !exists {
-		a.cache[msg.CoinName] = make(map[string]contracts.BidAsk)
-	}
-
+	coinState.mu.Lock()
 	for exchangeName, price := range msg.Prices {
-		a.cache[msg.CoinName][exchangeName] = price
+		coinState.prices[exchangeName] = price
 	}
-	a.mu.Unlock()
+	coinState.mu.Unlock()
+
 	a.analyzeCoin(msg.CoinName)
 	return nil
 }
 
 func (a *AnalyzerService) analyzeCoin(coin string) {
-	a.mu.RLock()
-	exchangesData := a.cache[coin]
-	a.mu.RUnlock()
+	coinState, exists := a.getCoinState(coin)
+	if !exists {
+		return
+	}
+
+	coinState.mu.RLock()
+	if len(coinState.prices) < 2 {
+		coinState.mu.RUnlock()
+		return
+	}
+
+	exchangesData := make(map[string]contracts.BidAsk, len(coinState.prices))
+	for exchangeName, price := range coinState.prices {
+		exchangesData[exchangeName] = price
+	}
+	coinState.mu.RUnlock()
 
 	if len(exchangesData) < 2 {
 		return
@@ -82,7 +98,7 @@ func (a *AnalyzerService) analyzeCoin(coin string) {
 			deal := contracts.ProfitDealInfo{
 				CoinName:      coin,
 				AskExchange:   minAskExchange,
-				BifExchange:   maxBidExchange,
+				BidExchange:   maxBidExchange,
 				AskPrice:      minAsk,
 				BidPrice:      maxBid,
 				ProfitAbs:     profitAbs,
@@ -90,9 +106,37 @@ func (a *AnalyzerService) analyzeCoin(coin string) {
 				Timestamp:     time.Now().UTC(),
 			}
 
-			if err := a.sender.Send(deal); err != nil {
-				log.Printf("Ошибка отправки сделки в Executor: %v", err)
-			}
+			go func(d contracts.ProfitDealInfo) {
+				if err := a.sender.Send(d); err != nil {
+					log.Printf("Ошибка отправки сделки: %v", err)
+				}
+			}(deal)
 		}
 	}
+}
+
+func (a *AnalyzerService) getCoinState(coin string) (*coinPriceState, bool) {
+	a.cacheMu.RLock()
+	coinState, exists := a.cache[coin]
+	a.cacheMu.RUnlock()
+
+	return coinState, exists
+}
+
+func (a *AnalyzerService) getOrCreateCoinState(coin string) *coinPriceState {
+	if coinState, exists := a.getCoinState(coin); exists {
+		return coinState
+	}
+
+	a.cacheMu.Lock()
+	defer a.cacheMu.Unlock()
+
+	if coinState, exists := a.cache[coin]; exists {
+		return coinState
+	}
+
+	coinState := &coinPriceState{prices: make(map[string]contracts.BidAsk)}
+	a.cache[coin] = coinState
+
+	return coinState
 }
