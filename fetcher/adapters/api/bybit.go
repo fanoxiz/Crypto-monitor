@@ -64,10 +64,14 @@ func (adap *BybitAdapter) GetPrice(coinName string) (contracts.BidAsk, error) {
 	item := apiResp.Result.List[0]
 
 	bid, err := strconv.ParseFloat(item.Bid1Price, 64)
-	ask, err := strconv.ParseFloat(item.Ask1Price, 64)
-
-	if err == nil {
-		return contracts.BidAsk{Bid: bid, Ask: ask}, nil
+	if err != nil {
+		return contracts.BidAsk{}, fmt.Errorf("failed to parse bid price %q: %w", item.Bid1Price, err)
 	}
-	return contracts.BidAsk{}, err
+
+	ask, err := strconv.ParseFloat(item.Ask1Price, 64)
+	if err != nil {
+		return contracts.BidAsk{}, fmt.Errorf("failed to parse ask price %q: %w", item.Ask1Price, err)
+	}
+
+	return contracts.BidAsk{Bid: bid, Ask: ask}, nil
 }

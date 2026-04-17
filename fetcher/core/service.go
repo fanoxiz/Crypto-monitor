@@ -4,8 +4,11 @@ import (
 	"log"
 	"time"
 
-	"github.com/fanoxiz/crypto-monitor/contracts" // allowed core dependency
+	"github.com/fanoxiz/crypto-monitor/contracts"
 )
+
+const senderWorkers = 10
+const queueSize = 100
 
 type FetcherService struct {
 	exchanges  []ExchangeAdapter
@@ -17,12 +20,14 @@ func NewFetcherService(exchanges []ExchangeAdapter, sender PriceSender) *Fetcher
 	return &FetcherService{
 		exchanges:  exchanges,
 		sender:     sender,
-		streamChan: make(chan contracts.MarketTickerInfo, 100),
+		streamChan: make(chan contracts.MarketTickerInfo, queueSize),
 	}
 }
 
 func (s *FetcherService) Start(coins []string, freq time.Duration) {
-	go s.senderWorker()
+	for range senderWorkers {
+		go s.senderWorker()
+	}
 
 	ticker := time.NewTicker(freq)
 	defer ticker.Stop()

@@ -51,10 +51,14 @@ func (adap *CoinbaseAdapter) GetPrice(coinName string) (contracts.BidAsk, error)
 	}
 
 	bid, err := strconv.ParseFloat(apiResp.Bid, 64)
-	ask, err := strconv.ParseFloat(apiResp.Ask, 64)
-
-	if err == nil {
-		return contracts.BidAsk{Bid: bid, Ask: ask}, nil
+	if err != nil {
+		return contracts.BidAsk{}, fmt.Errorf("failed to parse bid price %q: %w", apiResp.Bid, err)
 	}
-	return contracts.BidAsk{}, err
+
+	ask, err := strconv.ParseFloat(apiResp.Ask, 64)
+	if err != nil {
+		return contracts.BidAsk{}, fmt.Errorf("failed to parse ask price %q: %w", apiResp.Ask, err)
+	}
+
+	return contracts.BidAsk{Bid: bid, Ask: ask}, nil
 }

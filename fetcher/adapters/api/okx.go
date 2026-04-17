@@ -60,10 +60,14 @@ func (adap *OKXAdapter) GetPrice(coinName string) (contracts.BidAsk, error) {
 	}
 
 	bid, err := strconv.ParseFloat(apiResp.Data[0].BidPx, 64)
-	ask, err := strconv.ParseFloat(apiResp.Data[0].AskPx, 64)
-
-	if err == nil {
-		return contracts.BidAsk{Bid: bid, Ask: ask}, nil
+	if err != nil {
+		return contracts.BidAsk{}, fmt.Errorf("failed to parse bid price %q: %w", apiResp.Data[0].BidPx, err)
 	}
-	return contracts.BidAsk{}, err
+
+	ask, err := strconv.ParseFloat(apiResp.Data[0].AskPx, 64)
+	if err != nil {
+		return contracts.BidAsk{}, fmt.Errorf("failed to parse ask price %q: %w", apiResp.Data[0].AskPx, err)
+	}
+
+	return contracts.BidAsk{Bid: bid, Ask: ask}, nil
 }
