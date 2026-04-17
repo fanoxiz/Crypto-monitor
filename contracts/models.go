@@ -8,8 +8,9 @@ type BidAsk struct {
 }
 
 type MarketTickerInfo struct {
-	CoinName string            `json:"coin"`
-	Prices   map[string]BidAsk `json:"prices"`
+	CoinName     string `json:"coin"`
+	ExchangeName string `json:"exchange"`
+	Price        BidAsk `json:"price"`
 }
 
 type ProfitDealInfo struct {

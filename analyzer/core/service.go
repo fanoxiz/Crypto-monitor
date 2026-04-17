@@ -14,7 +14,6 @@ type coinPriceState struct {
 	prices map[string]contracts.BidAsk
 }
 
-// [Coin]StateWithOwnMutex
 type priceCache map[string]*coinPriceState
 
 type AnalyzerService struct {
@@ -36,9 +35,7 @@ func (a *AnalyzerService) ProcessPrices(msg contracts.MarketTickerInfo) error {
 	coinState := a.getOrCreateCoinState(msg.CoinName)
 
 	coinState.mu.Lock()
-	for exchangeName, price := range msg.Prices {
-		coinState.prices[exchangeName] = price
-	}
+	coinState.prices[msg.ExchangeName] = msg.Price
 	coinState.mu.Unlock()
 
 	a.analyzeCoin(msg.CoinName)
