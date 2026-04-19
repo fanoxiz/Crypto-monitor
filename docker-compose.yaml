@@ -9,6 +9,8 @@ services:
       POSTGRES_DB: crypto_db
     ports:
       - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "crypto_user", "-d", "crypto_db"]
       interval: 2s
@@ -46,3 +48,6 @@ services:
       - ANALYZER_URL=http://analyzer:8081/prices
     depends_on:
       - analyzer
+
+volumes:
+  postgres_data:

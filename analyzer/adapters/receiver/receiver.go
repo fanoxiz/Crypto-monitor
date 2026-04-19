@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/fanoxiz/crypto-monitor/analyzer/core"
 	"github.com/fanoxiz/crypto-monitor/contracts"
@@ -23,7 +24,16 @@ func (rec *HTTPReceiver) Start(port string) error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /prices", rec.handlePrices)
 	log.Printf("Analyzer запущен на порту %s", port)
-	return http.ListenAndServe(":"+port, mux)
+
+	srv := &http.Server{
+		Addr:         ":" + port,
+		Handler:      mux,
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		IdleTimeout:  60 * time.Second,
+	}
+
+	return srv.ListenAndServe()
 }
 
 func (rec *HTTPReceiver) handlePrices(w http.ResponseWriter, r *http.Request) {

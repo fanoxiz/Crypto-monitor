@@ -73,7 +73,7 @@ func (r *PostgresRepo) SaveDealAndUpdateBalance(ctx context.Context, deal contra
 	if err != nil {
 		return err
 	}
-
+	fmt.Printf("[%s] buy=%s | sell=%s | %f%% ($%f)", deal.CoinName, deal.AskExchange, deal.BidExchange, deal.ProfitPercent, earnedUSD)
 	_, err = tx.Exec(ctx, "UPDATE account SET balance = balance + $1 WHERE id = 1", earnedUSD)
 	if err != nil {
 		return err

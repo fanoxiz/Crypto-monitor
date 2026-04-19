@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"math"
 
 	"github.com/fanoxiz/crypto-monitor/contracts" // allowed core dependency
 )
@@ -41,8 +42,8 @@ func (s *ExecutorService) GetStats(ctx context.Context) (DealStats, error) {
 	}
 
 	return DealStats{
-		CurrentBalance: balance,
-		TotalEarned:    balance - s.initialBalance,
+		CurrentBalance: math.Round(balance*100) / 100,
+		TotalEarned:    math.Round((balance-s.initialBalance)*100) / 100,
 		DealsCount:     dealsCount,
 	}, nil
 }
