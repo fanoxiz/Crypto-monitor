@@ -1,6 +1,7 @@
 tracked_coins:
   - BTC
   - ETH
-request_frequency: 1s
+  - SOL
+request_frequency: 0.5s
 analyzer_url: http://localhost:8081/prices
 http_client_timeout: 4s

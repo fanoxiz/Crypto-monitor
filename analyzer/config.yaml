@@ -6,19 +6,22 @@ http_client_timeout: 2s
 # fees:
 #   Binance: 0.0
 #   Bybit: 0.0
+#   Bitget: 0.0
 #   OKX: 0.0
 #   Coinbase: 0.0
 
 # real vip fees:
 fees:
-  Binance: 0.00075 # 0.075%
+  Binance: 0.0005 # 0.05%
   Bybit: 0.0004 # 0.04%
+  Bitget: 0.0008 # 0.08%
   OKX: 0.0005 # 0.05%
-  Coinbase: 0.003 # 0.3%
+  Coinbase: 0.003 # 0.30%
 
 # # real basic fees:
 # fees:
 #   Binance: 0.001 # 0.1%
 #   Bybit: 0.001 # 0.1%
+#   Bitget: 0.001 # 0.1%
 #   OKX: 0.001 # 0.1%
 #   Coinbase: 0.006 # 0.6%

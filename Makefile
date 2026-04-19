@@ -5,7 +5,7 @@ EXECUTOR_PKG = ./executor/main.go
 
 .PHONY: \
 all build format ci-fix run-fetcher run-analyzer run-executor \
-up down dck-clean
+up down db-clean dck-clean
 
 all: build
 
@@ -38,14 +38,22 @@ run-executor:
 	go run $(EXECUTOR_PKG)
 
 up:
-	make dck-clean
 	make format
 	@echo "=== Запуск контейнеров ==="
+	docker compose up
+
+reup:
+	make format
+	@echo "=== Перезапуск контейнеров ==="
 	docker compose up --build
 
 down:
 	@echo "=== Остановка контейнеров ==="
 	docker compose down
+
+db-clean:
+	@echo "=== Остановка контейнеров ==="
+	docker compose down -v
 
 dck-clean:
 	@echo "=== Чистка docker ==="
