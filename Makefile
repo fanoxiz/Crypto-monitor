@@ -4,8 +4,8 @@ ANALYZER_PKG = ./analyzer/main.go
 EXECUTOR_PKG = ./executor/main.go
 
 .PHONY: \
-all build run-fetcher run-analyzer run-executor \
-up upd down dck-clean fix
+all build format ci-fix run-fetcher run-analyzer run-executor \
+up down dck-clean
 
 all: build
 
@@ -38,14 +38,10 @@ run-executor:
 	go run $(EXECUTOR_PKG)
 
 up:
-	@echo "=== Запуск в docker ==="
-	make
+	make dck-clean
+	make format
+	@echo "=== Запуск контейнеров ==="
 	docker compose up --build
-
-upd:
-	@echo "=== Запуск в docker в фоне ==="
-	make
-	docker compose up --build -d
 
 down:
 	@echo "=== Остановка контейнеров ==="
