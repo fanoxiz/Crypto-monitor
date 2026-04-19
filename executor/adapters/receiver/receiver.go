@@ -20,7 +20,7 @@ func NewHTTPReceiver(executor core.Executor) *HTTPReceiver {
 func (rec *HTTPReceiver) Start(port string) error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /deals", rec.handleDeals)
-
+	mux.HandleFunc("GET /stats", rec.handleGetStats)
 	log.Printf("Executor запущен на порту %s", port)
 	return http.ListenAndServe(":"+port, mux)
 }
@@ -33,11 +33,24 @@ func (rec *HTTPReceiver) handleDeals(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := rec.executor.ProcessDeal(msg); err != nil {
+	if err := rec.executor.ProcessDeal(r.Context(), msg); err != nil {
 		log.Printf("Ошибка обработки сделки: %v", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
+}
+
+func (rec *HTTPReceiver) handleGetStats(w http.ResponseWriter, r *http.Request) {
+	stats, err := rec.executor.GetStats(r.Context())
+	if err != nil {
+		http.Error(w, "db error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(stats); err != nil {
+		log.Printf("Ошибка формирования ответа stats: %v", err)
+	}
 }

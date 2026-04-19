@@ -1,28 +1,48 @@
 package core
 
 import (
-	"log"
+	"context"
 
 	"github.com/fanoxiz/crypto-monitor/contracts" // allowed core dependency
 )
 
-type ExecutorService struct{}
-
-func NewExecutorService() *ExecutorService {
-	return &ExecutorService{}
+type ExecutorService struct {
+	repo           DBRepository
+	tradeSize      float64
+	initialBalance float64
 }
 
-func (s *ExecutorService) ProcessDeal(msg contracts.ProfitDealInfo) error {
-	log.Printf(
-		"[%s] buy=%.2f (%s) | sell=%.2f(%s) | profit=%.3f%% ($%.2f)",
-		msg.CoinName,
-		msg.AskPrice,
-		msg.AskExchange,
-		msg.BidPrice,
-		msg.BidExchange,
-		msg.ProfitPercent,
-		msg.ProfitAbs,
-	)
+func NewExecutorService(repo DBRepository, tradeSize float64, initialBalance float64) *ExecutorService {
+	return &ExecutorService{
+		repo:           repo,
+		tradeSize:      tradeSize,
+		initialBalance: initialBalance,
+	}
+}
 
-	return nil
+func (s *ExecutorService) ProcessDeal(ctx context.Context, deal contracts.ProfitDealInfo) error {
+	earned := s.tradeSize * (deal.ProfitPercent / 100.0)
+	return s.repo.SaveDealAndUpdateBalance(ctx, deal, earned)
+}
+
+func (s *ExecutorService) GetCurrentBalance(ctx context.Context) (float64, error) {
+	return s.repo.GetBalance(ctx)
+}
+
+func (s *ExecutorService) GetStats(ctx context.Context) (DealStats, error) {
+	balance, err := s.repo.GetBalance(ctx)
+	if err != nil {
+		return DealStats{}, err
+	}
+
+	dealsCount, err := s.repo.GetDealsCount(ctx)
+	if err != nil {
+		return DealStats{}, err
+	}
+
+	return DealStats{
+		CurrentBalance: balance,
+		TotalEarned:    balance - s.initialBalance,
+		DealsCount:     dealsCount,
+	}, nil
 }
