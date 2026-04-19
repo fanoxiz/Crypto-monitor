@@ -29,6 +29,7 @@ func main() {
 	exchanges := []core.ExchangeAdapter{
 		api.NewBinanceAdapter(openedClient),
 		api.NewBybitAdapter(openedClient),
+		api.NewBitgetAdapter(openedClient),
 		api.NewCoinbaseAdapter(openedClient),
 		api.NewOKXAdapter(openedClient),
 	}
