@@ -11,12 +11,11 @@ import (
 )
 
 const (
-	tradeSize      = 1000.0
+	tradeSize      = 10000.0
 	initialBalance = 10000.0
 )
 
 func main() {
-
 	dbUrl := os.Getenv("DATABASE_URL")
 	if dbUrl == "" {
 		dbUrl = "postgres://crypto_user:secret_password@localhost:5433/crypto_db"
@@ -30,6 +29,7 @@ func main() {
 	executorService := core.NewExecutorService(repo, tradeSize, initialBalance)
 	httpServer := receiver.NewHTTPReceiver(executorService)
 
+	log.Println("Executor service is running...")
 	if err := httpServer.Start("8082"); err != nil {
 		log.Fatalf("Ошибка сервера: %v", err)
 	}

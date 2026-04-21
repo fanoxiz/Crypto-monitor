@@ -7,6 +7,8 @@ import (
 	"github.com/fanoxiz/crypto-monitor/contracts" // allowed core dependency
 )
 
+const recentDealsLimit = 1
+
 type ExecutorService struct {
 	repo           DBRepository
 	tradeSize      float64
@@ -41,9 +43,18 @@ func (s *ExecutorService) GetStats(ctx context.Context) (DealStats, error) {
 		return DealStats{}, err
 	}
 
+	recentDeals, err := s.repo.GetRecentDeals(ctx, recentDealsLimit)
+	if err != nil {
+		return DealStats{}, err
+	}
+	if recentDeals == nil {
+		recentDeals = make([]RecentDeal, 0)
+	}
+
 	return DealStats{
 		CurrentBalance: math.Round(balance*100) / 100,
 		TotalEarned:    math.Round((balance-s.initialBalance)*100) / 100,
 		DealsCount:     dealsCount,
+		RecentDeals:    recentDeals,
 	}, nil
 }

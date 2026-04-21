@@ -28,7 +28,7 @@ func (adap *CoinbaseAdapter) GetPrice(coinName string) (contracts.BidAsk, error)
 
 	resp, err := adap.client.Get(url)
 	if err != nil {
-		return contracts.BidAsk{}, err
+		return contracts.BidAsk{}, fmt.Errorf("coinbase request failed for %s: %w", coinName, err)
 	}
 	defer resp.Body.Close()
 
@@ -43,7 +43,7 @@ func (adap *CoinbaseAdapter) GetPrice(coinName string) (contracts.BidAsk, error)
 
 	err = json.NewDecoder(resp.Body).Decode(&apiResp)
 	if err != nil {
-		return contracts.BidAsk{}, err
+		return contracts.BidAsk{}, fmt.Errorf("coinbase decode response failed for %s: %w", coinName, err)
 	}
 
 	if apiResp.Bid == "" || apiResp.Ask == "" {
