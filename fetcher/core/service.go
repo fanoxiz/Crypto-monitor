@@ -2,15 +2,29 @@ package core
 
 import (
 	"log"
+	"math"
 	"time"
 
 	"github.com/fanoxiz/crypto-monitor/contracts"
 )
 
-const fetchWorkers = 40
-const senderWorkers = 20
-const fetchQueueSize = 500
-const senderQueueSize = 100
+type WorkerPoolConfig struct {
+	FetchWorkers    int
+	SenderWorkers   int
+	FetchQueueSize  int
+	SenderQueueSize int
+}
+
+func (WorkerPoolConfig) Precalculate(coinsCount int, exchangesCount int, frequency time.Duration, httpTimeout time.Duration) WorkerPoolConfig {
+	fetchRate := float64(coinsCount*exchangesCount) / frequency.Seconds()
+
+	return WorkerPoolConfig{
+		FetchWorkers:    int(math.Ceil(fetchRate * httpTimeout.Seconds())),
+		SenderWorkers:   int(math.Ceil(fetchRate * 2)),
+		FetchQueueSize:  int(math.Ceil(fetchRate * 50)),
+		SenderQueueSize: int(math.Ceil(fetchRate * 10)),
+	}
+}
 
 type fetchTask struct {
 	coin string
@@ -20,25 +34,29 @@ type fetchTask struct {
 type FetcherService struct {
 	exchanges  []ExchangeAdapter
 	sender     PriceSender
+	fetchers   int
+	senders    int
 	fetchQueue chan fetchTask
 	streamChan chan contracts.MarketTickerInfo
 }
 
-func NewFetcherService(exchanges []ExchangeAdapter, sender PriceSender) *FetcherService {
+func NewFetcherService(exchanges []ExchangeAdapter, sender PriceSender, poolCfg WorkerPoolConfig) *FetcherService {
 	return &FetcherService{
 		exchanges:  exchanges,
 		sender:     sender,
-		fetchQueue: make(chan fetchTask, fetchQueueSize),
-		streamChan: make(chan contracts.MarketTickerInfo, senderQueueSize),
+		fetchers:   poolCfg.FetchWorkers,
+		senders:    poolCfg.SenderWorkers,
+		fetchQueue: make(chan fetchTask, poolCfg.FetchQueueSize),
+		streamChan: make(chan contracts.MarketTickerInfo, poolCfg.SenderQueueSize),
 	}
 }
 
 func (s *FetcherService) Start(coins []string, freq time.Duration) {
-	for range fetchWorkers {
+	for range s.fetchers {
 		go s.fetchWorker()
 	}
 
-	for range senderWorkers {
+	for range s.senders {
 		go s.senderWorker()
 	}
 

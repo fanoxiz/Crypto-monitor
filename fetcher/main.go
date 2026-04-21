@@ -43,8 +43,15 @@ func main() {
 		api.NewOKXAdapter(exchangeClient),
 	}
 
+	poolCfg := (core.WorkerPoolConfig{}).Precalculate(
+		len(cfg.TrackedCoins),
+		len(exchanges),
+		cfg.RequestFrequency,
+		cfg.HTTPClientTimeout,
+	)
+
 	senderService := sender.NewSenderService(analyzerClient, cfg.AnalyzerEndpoint)
-	fetcherService := core.NewFetcherService(exchanges, senderService)
+	fetcherService := core.NewFetcherService(exchanges, senderService, poolCfg)
 
 	log.Println("Fetcher service is running...")
 	fetcherService.Start(cfg.TrackedCoins, cfg.RequestFrequency)
