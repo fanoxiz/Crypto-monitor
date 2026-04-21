@@ -17,7 +17,7 @@ func main() {
 		log.Fatalf("failed to load config: %v", err)
 	}
 
-	openedClient := &http.Client{
+	exchangeClient := &http.Client{
 		Transport: &http.Transport{
 			MaxIdleConns:        100,
 			MaxIdleConnsPerHost: 100,
@@ -26,15 +26,24 @@ func main() {
 		Timeout: cfg.HTTPClientTimeout,
 	}
 
-	exchanges := []core.ExchangeAdapter{
-		api.NewBinanceAdapter(openedClient),
-		api.NewBybitAdapter(openedClient),
-		api.NewBitgetAdapter(openedClient),
-		api.NewCoinbaseAdapter(openedClient),
-		api.NewOKXAdapter(openedClient),
+	analyzerClient := &http.Client{
+		Transport: &http.Transport{
+			MaxIdleConns:        20,
+			MaxIdleConnsPerHost: 20,
+			IdleConnTimeout:     90 * time.Second,
+		},
+		Timeout: cfg.HTTPClientTimeout,
 	}
 
-	senderService := sender.NewSenderService(openedClient, cfg.AnalyzerEndpoint)
+	exchanges := []core.ExchangeAdapter{
+		api.NewBinanceAdapter(exchangeClient),
+		api.NewBybitAdapter(exchangeClient),
+		api.NewBitgetAdapter(exchangeClient),
+		api.NewCoinbaseAdapter(exchangeClient),
+		api.NewOKXAdapter(exchangeClient),
+	}
+
+	senderService := sender.NewSenderService(analyzerClient, cfg.AnalyzerEndpoint)
 	fetcherService := core.NewFetcherService(exchanges, senderService)
 
 	log.Println("Fetcher service is running...")

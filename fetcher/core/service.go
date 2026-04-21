@@ -7,12 +7,20 @@ import (
 	"github.com/fanoxiz/crypto-monitor/contracts"
 )
 
+const fetchWorkers = 40
 const senderWorkers = 20
-const queueSize = 100
+const fetchQueueSize = 500
+const senderQueueSize = 100
+
+type fetchTask struct {
+	coin string
+	ex   ExchangeAdapter
+}
 
 type FetcherService struct {
 	exchanges  []ExchangeAdapter
 	sender     PriceSender
+	fetchQueue chan fetchTask
 	streamChan chan contracts.MarketTickerInfo
 }
 
@@ -20,11 +28,16 @@ func NewFetcherService(exchanges []ExchangeAdapter, sender PriceSender) *Fetcher
 	return &FetcherService{
 		exchanges:  exchanges,
 		sender:     sender,
-		streamChan: make(chan contracts.MarketTickerInfo, queueSize),
+		fetchQueue: make(chan fetchTask, fetchQueueSize),
+		streamChan: make(chan contracts.MarketTickerInfo, senderQueueSize),
 	}
 }
 
 func (s *FetcherService) Start(coins []string, freq time.Duration) {
+	for range fetchWorkers {
+		go s.fetchWorker()
+	}
+
 	for range senderWorkers {
 		go s.senderWorker()
 	}
@@ -36,9 +49,28 @@ func (s *FetcherService) Start(coins []string, freq time.Duration) {
 		<-ticker.C
 		for _, coin := range coins {
 			for _, ex := range s.exchanges {
-				go s.fetchSingle(coin, ex)
+				s.enqueueFetchTask(coin, ex)
 			}
 		}
+	}
+}
+
+func (s *FetcherService) enqueueFetchTask(coin string, ex ExchangeAdapter) {
+	task := fetchTask{
+		coin: coin,
+		ex:   ex,
+	}
+
+	select {
+	case s.fetchQueue <- task:
+	default:
+		log.Printf("Fetch queue overflow, skip task: coin=%s exchange=%s", coin, ex.GetName())
+	}
+}
+
+func (s *FetcherService) fetchWorker() {
+	for task := range s.fetchQueue {
+		s.fetchSingle(task.coin, task.ex)
 	}
 }
 
