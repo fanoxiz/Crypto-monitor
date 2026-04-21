@@ -7,7 +7,7 @@ import (
 	"github.com/fanoxiz/crypto-monitor/contracts"
 )
 
-const senderWorkers = 10
+const senderWorkers = 20
 const queueSize = 100
 
 type FetcherService struct {

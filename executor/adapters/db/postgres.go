@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/fanoxiz/crypto-monitor/contracts"
+	"github.com/fanoxiz/crypto-monitor/executor/core"
 )
 
 type PostgresRepo struct {
@@ -74,7 +75,14 @@ func (r *PostgresRepo) SaveDealAndUpdateBalance(ctx context.Context, deal contra
 	if err != nil {
 		return err
 	}
-	log.Printf("[%s] buy=%s | sell=%s | %f%% ($%f)", deal.CoinName, deal.AskExchange, deal.BidExchange, deal.ProfitPercent, earnedUSD)
+	log.Printf("[%s] buy: $%f (at %s) | sell: $%f (at %s) | earn: $%f (%f%%)",
+		deal.CoinName,
+		deal.AskPrice,
+		deal.AskExchange,
+		deal.BidPrice,
+		deal.BidExchange,
+		earnedUSD,
+		deal.ProfitPercent)
 	_, err = tx.Exec(ctx, "UPDATE account SET balance = balance + $1 WHERE id = 1", earnedUSD)
 	if err != nil {
 		return err
@@ -93,4 +101,32 @@ func (r *PostgresRepo) GetDealsCount(ctx context.Context) (int64, error) {
 	var count int64
 	err := r.pool.QueryRow(ctx, "SELECT COUNT(*) FROM deals").Scan(&count)
 	return count, err
+}
+
+func (r *PostgresRepo) GetRecentDeals(ctx context.Context, limit int) ([]core.RecentDeal, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT coin, buy_exchange, sell_exchange, profit_percent, earned_usd, created_at
+		FROM deals
+		ORDER BY created_at DESC, id DESC
+		LIMIT $1
+	`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	deals := make([]core.RecentDeal, 0, limit)
+	for rows.Next() {
+		var d core.RecentDeal
+		if err := rows.Scan(&d.Coin, &d.BuyExchange, &d.SellExchange, &d.ProfitPercent, &d.EarnedUSD, &d.CreatedAt); err != nil {
+			return nil, err
+		}
+		deals = append(deals, d)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return deals, nil
 }

@@ -30,6 +30,7 @@ func main() {
 	analyzerService := core.NewAnalyzerService(cfg.Fees, senderService)
 	receiver := receiver.NewHTTPReceiver(analyzerService)
 
+	log.Println("Analyzer service is running...")
 	if err := receiver.Start(cfg.Port); err != nil {
 		log.Fatalf("Ошибка запуска сервера: %v", err)
 	}
