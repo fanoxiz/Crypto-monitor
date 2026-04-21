@@ -29,7 +29,21 @@ curl -X GET http://localhost:8082/stats
 Пример вывода:
 
 ```json
-
+{
+  "current_balance": 10113.96,
+  "total_earned": 113.96,
+  "deals_count": 28,
+  "recent_deals": [
+    {
+      "coin": "ETH",
+      "buy_exchange": "Bybit",
+      "sell_exchange": "Bitget",
+      "profit_percent": 0.0193,
+      "earned_usd": 1.9253,
+      "created_at": "2026-04-21T11:11:42.0777Z"
+    }
+  ]
+}
 ```
 
 ## Оставшиеся для реализации нововведения
