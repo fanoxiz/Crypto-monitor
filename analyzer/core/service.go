@@ -3,62 +3,40 @@ package core
 import (
 	"log"
 	"math"
-	"sync"
 	"time"
 
 	"github.com/fanoxiz/crypto-monitor/contracts" // allowed core dependency
 )
 
-type coinPriceState struct {
-	mu     sync.RWMutex
-	prices map[string]contracts.BidAsk
-}
-
-type priceCache map[string]*coinPriceState
-
 type AnalyzerService struct {
-	fees    map[string]float64
-	cache   priceCache
-	cacheMu sync.RWMutex
-	sender  DealSender
+	fees   map[string]float64
+	store  PriceStore
+	sender DealSender
 }
 
-func NewAnalyzerService(fees map[string]float64, sender DealSender) *AnalyzerService {
+func NewAnalyzerService(fees map[string]float64, sender DealSender, store PriceStore) *AnalyzerService {
 	return &AnalyzerService{
 		fees:   fees,
-		cache:  make(priceCache),
+		store:  store,
 		sender: sender,
 	}
 }
 
 func (a *AnalyzerService) ProcessPrices(msg contracts.MarketTickerInfo) error {
-	coinState := a.getOrCreateCoinState(msg.CoinName)
-
-	coinState.mu.Lock()
-	coinState.prices[msg.ExchangeName] = msg.Price
-	coinState.mu.Unlock()
+	if err := a.store.SetPrice(msg.CoinName, msg.ExchangeName, msg.Price); err != nil {
+		return err
+	}
 
 	a.analyzeCoin(msg.CoinName)
 	return nil
 }
 
 func (a *AnalyzerService) analyzeCoin(coin string) {
-	coinState, exists := a.getCoinState(coin)
-	if !exists {
+	exchangesData, err := a.store.GetPrices(coin)
+	if err != nil {
+		log.Printf("Ошибка чтения кэша цен: %v", err)
 		return
 	}
-
-	coinState.mu.RLock()
-	if len(coinState.prices) < 2 {
-		coinState.mu.RUnlock()
-		return
-	}
-
-	exchangesData := make(map[string]contracts.BidAsk, len(coinState.prices))
-	for exchangeName, price := range coinState.prices {
-		exchangesData[exchangeName] = price
-	}
-	coinState.mu.RUnlock()
 
 	if len(exchangesData) < 2 {
 		return
@@ -108,30 +86,4 @@ func (a *AnalyzerService) analyzeCoin(coin string) {
 			}
 		}
 	}
-}
-
-func (a *AnalyzerService) getCoinState(coin string) (*coinPriceState, bool) {
-	a.cacheMu.RLock()
-	coinState, exists := a.cache[coin]
-	a.cacheMu.RUnlock()
-
-	return coinState, exists
-}
-
-func (a *AnalyzerService) getOrCreateCoinState(coin string) *coinPriceState {
-	if coinState, exists := a.getCoinState(coin); exists {
-		return coinState
-	}
-
-	a.cacheMu.Lock()
-	defer a.cacheMu.Unlock()
-
-	if coinState, exists := a.cache[coin]; exists {
-		return coinState
-	}
-
-	coinState := &coinPriceState{prices: make(map[string]contracts.BidAsk)}
-	a.cache[coin] = coinState
-
-	return coinState
 }

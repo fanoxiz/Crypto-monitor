@@ -8,6 +8,8 @@ import (
 	"github.com/fanoxiz/crypto-monitor/contracts"
 )
 
+const overflowTimeout = 5 * time.Second
+
 type WorkerPoolConfig struct {
 	FetchWorkers    int
 	SenderWorkers   int
@@ -94,8 +96,18 @@ func (s *FetcherService) fetchWorker() {
 
 func (s *FetcherService) fetchSingle(coin string, ex ExchangeAdapter) {
 	price, err := ex.GetPrice(coin)
+
 	if err != nil {
+		s.streamChan <- contracts.MarketTickerInfo{
+			CoinName:     coin,
+			ExchangeName: ex.GetName(),
+			Price: contracts.BidAsk{
+				Bid: 1e9,
+				Ask: 0,
+			}, // затычка для сброса старой цены
+		}
 		log.Printf("[%s] Ошибка на %s: %v", coin, ex.GetName(), err)
+		time.Sleep(overflowTimeout)
 		return
 	}
 

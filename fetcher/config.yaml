@@ -4,4 +4,4 @@ tracked_coins:
   # - SOL
 request_frequency: 1s
 analyzer_url: http://localhost:8081/prices
-http_client_timeout: 4s
+http_client_timeout: 8s
