@@ -5,9 +5,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sync"
 
 	"github.com/fanoxiz/crypto-monitor/contracts"
 )
+
+var jsonBufferPool = sync.Pool{
+	New: func() any {
+		return &bytes.Buffer{}
+	},
+}
 
 type SenderService struct {
 	client   *http.Client
@@ -22,12 +29,15 @@ func NewSenderService(client *http.Client, endpoint string) *SenderService {
 }
 
 func (s *SenderService) Send(msg contracts.MarketTickerInfo) error {
-	data, err := json.Marshal(msg)
-	if err != nil {
+	buf := jsonBufferPool.Get().(*bytes.Buffer)
+	buf.Reset()
+	defer jsonBufferPool.Put(buf)
+
+	if err := json.NewEncoder(buf).Encode(msg); err != nil {
 		return fmt.Errorf("marshal error: %w", err)
 	}
 
-	req, err := http.NewRequest(http.MethodPost, s.endpoint, bytes.NewBuffer(data))
+	req, err := http.NewRequest(http.MethodPost, s.endpoint, bytes.NewReader(buf.Bytes()))
 	if err != nil {
 		return fmt.Errorf("create request error: %w", err)
 	}
