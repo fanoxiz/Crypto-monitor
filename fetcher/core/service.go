@@ -20,12 +20,14 @@ type WorkerPoolConfig struct {
 func (WorkerPoolConfig) Precalculate(coinsCount int, exchangesCount int, frequency time.Duration, httpTimeout time.Duration) WorkerPoolConfig {
 	fetchRate := float64(coinsCount*exchangesCount) / frequency.Seconds()
 
-	return WorkerPoolConfig{
+	cfg := WorkerPoolConfig{
 		FetchWorkers:    int(math.Ceil(fetchRate * httpTimeout.Seconds())),
-		SenderWorkers:   int(math.Ceil(fetchRate * 2)),
-		FetchQueueSize:  int(math.Ceil(fetchRate * 50)),
+		SenderWorkers:   int(fetchRate),
+		FetchQueueSize:  int(math.Ceil(fetchRate * 10)),
 		SenderQueueSize: int(math.Ceil(fetchRate * 10)),
 	}
+	log.Print("Worker pool cfg: ", cfg)
+	return cfg
 }
 
 type fetchTask struct {

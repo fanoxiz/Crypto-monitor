@@ -39,7 +39,7 @@ func main() {
 		api.NewBinanceAdapter(exchangeClient),
 		api.NewBybitAdapter(exchangeClient),
 		api.NewBitgetAdapter(exchangeClient),
-		api.NewCoinbaseAdapter(exchangeClient),
+		// api.NewCoinbaseAdapter(exchangeClient),
 		api.NewOKXAdapter(exchangeClient),
 	}
 

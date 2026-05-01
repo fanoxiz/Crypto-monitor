@@ -47,6 +47,7 @@ curl -X GET http://localhost:8082/stats
 
 ## Оставшиеся для реализации нововведения
 
+- [ ] Покрытие тестами
 - [ ] Контроль свежести через context / timestamp
 - [ ] Внедрение sync.Pool
 - [ ] Внедрение WebSocket
