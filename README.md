@@ -4,7 +4,7 @@
 
 Роли микросервисов:
 
-- `fetcher` собирает котировки с Binance, Bybit, Coinbase, OKX и BitGet
+- `fetcher` собирает котировки с Binance, Bybit, OKX и BitGet
 - `analyzer` пересчитывает спред с учетом реальных комиссий
 - `executor` сохраняет статистику по успешным сделкам в БД
 
@@ -49,6 +49,5 @@ curl -X GET http://localhost:8082/stats
 
 - [ ] Покрытие тестами
 - [ ] Контроль свежести через context / timestamp
-- [ ] Внедрение sync.Pool
 - [ ] Внедрение WebSocket
 - [ ] Переход на gRPC

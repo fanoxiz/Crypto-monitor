@@ -45,6 +45,7 @@ up:
 reup:
 	make format
 	@echo "=== Перезапуск контейнеров ==="
+	make down
 	docker compose up --build
 
 down:
