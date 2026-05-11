@@ -28,12 +28,12 @@ func (adap *BybitAdapter) GetPrice(coinName string) (contracts.BidAsk, error) {
 
 	resp, err := adap.client.Get(url)
 	if err != nil {
-		return contracts.BidAsk{}, fmt.Errorf("bybit request failed for %s: %w", coinName, err)
+		return contracts.BidAsk{}, fmt.Errorf("bybit get price: request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return contracts.BidAsk{}, fmt.Errorf("wrong resp.StatusCode: %d", resp.StatusCode)
+		return contracts.BidAsk{}, fmt.Errorf("bybit get price: unexpected http status: %d", resp.StatusCode)
 	}
 
 	var apiResp struct {
@@ -50,27 +50,27 @@ func (adap *BybitAdapter) GetPrice(coinName string) (contracts.BidAsk, error) {
 
 	err = json.NewDecoder(resp.Body).Decode(&apiResp)
 	if err != nil {
-		return contracts.BidAsk{}, fmt.Errorf("bybit decode response failed for %s: %w", coinName, err)
+		return contracts.BidAsk{}, fmt.Errorf("bybit get price: decode response: %w", err)
 	}
 
 	if apiResp.RetCode != 0 {
-		return contracts.BidAsk{}, fmt.Errorf("wrong resp.StatusCode: %d", apiResp.RetCode)
+		return contracts.BidAsk{}, fmt.Errorf("bybit get price: api error: code=%d msg=%s", apiResp.RetCode, apiResp.RetMsg)
 	}
 
 	if len(apiResp.Result.List) == 0 {
-		return contracts.BidAsk{}, fmt.Errorf("empty ticker list for coin: %s", coinName)
+		return contracts.BidAsk{}, fmt.Errorf("bybit get price: empty data: symbol=%s", coinName)
 	}
 
 	item := apiResp.Result.List[0]
 
 	bid, err := strconv.ParseFloat(item.Bid1Price, 64)
 	if err != nil {
-		return contracts.BidAsk{}, fmt.Errorf("failed to parse bid price %q: %w", item.Bid1Price, err)
+		return contracts.BidAsk{}, fmt.Errorf("bybit get price: parse bid price %q: %w", item.Bid1Price, err)
 	}
 
 	ask, err := strconv.ParseFloat(item.Ask1Price, 64)
 	if err != nil {
-		return contracts.BidAsk{}, fmt.Errorf("failed to parse ask price %q: %w", item.Ask1Price, err)
+		return contracts.BidAsk{}, fmt.Errorf("bybit get price: parse ask price %q: %w", item.Ask1Price, err)
 	}
 
 	return contracts.BidAsk{Bid: bid, Ask: ask}, nil

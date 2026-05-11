@@ -31,7 +31,7 @@ func NewHTTPReceiver(an core.Analyzer) *HTTPReceiver {
 func (rec *HTTPReceiver) Start(port string) error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /prices", rec.handlePrices)
-	log.Printf("Analyzer запущен на порту %s", port)
+	log.Printf("level=INFO component=receiver event=server_started port=%s", port)
 
 	srv := &http.Server{
 		Addr:         ":" + port,
@@ -52,18 +52,18 @@ func (rec *HTTPReceiver) handlePrices(w http.ResponseWriter, r *http.Request) {
 	defer jsonBufferPool.Put(buf)
 
 	if _, err := buf.ReadFrom(r.Body); err != nil {
-		http.Error(w, "invalid json", http.StatusBadRequest)
+		http.Error(w, "error=invalid_json", http.StatusBadRequest)
 		return
 	}
 
 	if err := json.Unmarshal(buf.Bytes(), &msg); err != nil {
-		http.Error(w, "invalid json", http.StatusBadRequest)
+		http.Error(w, "error=invalid_json", http.StatusBadRequest)
 		return
 	}
 
 	if err := rec.analyzer.ProcessPrices(msg); err != nil {
-		log.Printf("Ошибка анализа: %v", err)
-		http.Error(w, "internal server error", http.StatusInternalServerError)
+		log.Printf("level=ERROR component=receiver event=process_prices_failed err=\"%v\"", err)
+		http.Error(w, "error=internal_error", http.StatusInternalServerError)
 		return
 	}
 

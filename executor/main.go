@@ -16,6 +16,8 @@ const (
 )
 
 func main() {
+	log.SetPrefix("service=executor ")
+
 	dbUrl := os.Getenv("DATABASE_URL")
 	if dbUrl == "" {
 		dbUrl = "postgres://crypto_user:secret_password@localhost:5433/crypto_db"
@@ -23,14 +25,14 @@ func main() {
 
 	repo, err := db.NewPostgresRepo(context.Background(), dbUrl, initialBalance)
 	if err != nil {
-		log.Fatalf("Ошибка подключения к БД: %v", err)
+		log.Fatalf("level=ERROR component=main event=db_connect_failed err=\"%v\"", err)
 	}
 
 	executorService := core.NewExecutorService(repo, tradeSize, initialBalance)
 	httpServer := receiver.NewHTTPReceiver(executorService)
 
-	log.Println("Executor service is running...")
+	log.Printf("level=INFO component=main event=service_started port=8082")
 	if err := httpServer.Start("8082"); err != nil {
-		log.Fatalf("Ошибка сервера: %v", err)
+		log.Fatalf("level=ERROR component=main event=server_start_failed err=\"%v\"", err)
 	}
 }

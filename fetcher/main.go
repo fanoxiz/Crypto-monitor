@@ -12,9 +12,11 @@ import (
 )
 
 func main() {
+	log.SetPrefix("service=fetcher ")
+
 	cfg, err := config.Load("fetcher/config.yaml")
 	if err != nil {
-		log.Fatalf("failed to load config: %v", err)
+		log.Fatalf("level=ERROR component=main event=config_load_failed err=\"%v\"", err)
 	}
 
 	exchangeClient := &http.Client{
@@ -53,6 +55,6 @@ func main() {
 	senderService := sender.NewSenderService(analyzerClient, cfg.AnalyzerEndpoint)
 	fetcherService := core.NewFetcherService(exchanges, senderService, poolCfg)
 
-	log.Println("Fetcher service is running...")
+	log.Printf("level=INFO component=main event=service_started exchanges=%d coins=%d", len(exchanges), len(cfg.TrackedCoins))
 	fetcherService.Start(cfg.TrackedCoins, cfg.RequestFrequency)
 }

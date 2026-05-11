@@ -26,7 +26,13 @@ func (WorkerPoolConfig) Precalculate(coinsCount int, exchangesCount int, frequen
 		FetchQueueSize:  int(math.Ceil(fetchRate * 10)),
 		SenderQueueSize: int(math.Ceil(fetchRate * 10)),
 	}
-	log.Print("Worker pool cfg: ", cfg)
+	log.Printf(
+		"level=INFO component=core event=worker_pool_config fetch_workers=%d sender_workers=%d fetch_queue=%d sender_queue=%d",
+		cfg.FetchWorkers,
+		cfg.SenderWorkers,
+		cfg.FetchQueueSize,
+		cfg.SenderQueueSize,
+	)
 	return cfg
 }
 
@@ -86,7 +92,7 @@ func (s *FetcherService) enqueueFetchTask(coin string, ex ExchangeAdapter) {
 	select {
 	case s.fetchQueue <- task:
 	default:
-		log.Printf("Fetch queue overflow, skip task: coin=%s exchange=%s", coin, ex.GetName())
+		log.Printf("level=WARN component=core event=fetch_queue_overflow coin=%s exchange=%s", coin, ex.GetName())
 	}
 }
 
@@ -108,7 +114,7 @@ func (s *FetcherService) fetchSingle(coin string, ex ExchangeAdapter) {
 				Ask: 0,
 			}, // затычка для сброса старой цены
 		}
-		log.Printf("[%s] Ошибка на %s: %v", coin, ex.GetName(), err)
+		log.Printf("level=ERROR component=core event=fetch_failed coin=%s exchange=%s err=\"%v\"", coin, ex.GetName(), err)
 		time.Sleep(overflowTimeout)
 		return
 	}
@@ -125,7 +131,7 @@ func (s *FetcherService) fetchSingle(coin string, ex ExchangeAdapter) {
 func (s *FetcherService) senderWorker() {
 	for msg := range s.streamChan {
 		if err := s.sender.Send(msg); err != nil {
-			log.Printf("Ошибка при отправке в Analyzer: %v", err)
+			log.Printf("level=ERROR component=core event=send_failed coin=%s exchange=%s err=\"%v\"", msg.CoinName, msg.ExchangeName, err)
 		}
 	}
 }

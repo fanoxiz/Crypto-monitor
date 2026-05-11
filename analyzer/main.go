@@ -15,9 +15,11 @@ import (
 )
 
 func main() {
+	log.SetPrefix("service=analyzer ")
+
 	cfg, err := config.Load("analyzer/config.yaml")
 	if err != nil {
-		log.Fatalf("failed to load config: %v", err)
+		log.Fatalf("level=ERROR component=main event=config_load_failed err=\"%v\"", err)
 	}
 
 	openedClient := &http.Client{
@@ -39,15 +41,15 @@ func main() {
 	defer redisClient.Close()
 
 	if err := redisClient.Ping(context.Background()).Err(); err != nil {
-		log.Fatalf("failed to connect redis: %v", err)
+		log.Fatalf("level=ERROR component=main event=redis_connect_failed err=\"%v\"", err)
 	}
 
 	priceStore := cache.NewRedisPriceStore(redisClient, cfg.RedisKeyPrefix)
 	analyzerService := core.NewAnalyzerService(cfg.Fees, senderService, priceStore)
 	receiver := receiver.NewHTTPReceiver(analyzerService)
 
-	log.Println("Analyzer service is running...")
+	log.Printf("level=INFO component=main event=service_started port=%s", cfg.Port)
 	if err := receiver.Start(cfg.Port); err != nil {
-		log.Fatalf("Ошибка запуска сервера: %v", err)
+		log.Fatalf("level=ERROR component=main event=server_start_failed err=\"%v\"", err)
 	}
 }
