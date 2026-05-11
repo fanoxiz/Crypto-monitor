@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/ilyakaznacheev/cleanenv"
@@ -21,7 +22,7 @@ func Load(path string) (Config, error) {
 	var cfg Config
 
 	if err := cleanenv.ReadConfig(path, &cfg); err != nil {
-		return Config{}, err
+		return Config{}, fmt.Errorf("config load: %w", err)
 	}
 
 	return cfg, nil

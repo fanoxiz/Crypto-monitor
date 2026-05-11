@@ -24,11 +24,11 @@ func NewRedisPriceStore(client *redis.Client, keyPrefix string) *RedisPriceStore
 func (s *RedisPriceStore) SetPrice(coin, exchange string, price contracts.BidAsk) error {
 	data, err := json.Marshal(price)
 	if err != nil {
-		return fmt.Errorf("marshal bidask: %w", err)
+		return fmt.Errorf("redis set price: marshal: %w", err)
 	}
 
 	if err := s.client.HSet(context.Background(), s.coinKey(coin), exchange, data).Err(); err != nil {
-		return fmt.Errorf("redis hset: %w", err)
+		return fmt.Errorf("redis set price: hset: %w", err)
 	}
 
 	return nil
@@ -37,7 +37,7 @@ func (s *RedisPriceStore) SetPrice(coin, exchange string, price contracts.BidAsk
 func (s *RedisPriceStore) GetPrices(coin string) (map[string]contracts.BidAsk, error) {
 	rows, err := s.client.HGetAll(context.Background(), s.coinKey(coin)).Result()
 	if err != nil {
-		return nil, fmt.Errorf("redis hgetall: %w", err)
+		return nil, fmt.Errorf("redis get prices: hgetall: %w", err)
 	}
 
 	prices := make(map[string]contracts.BidAsk, len(rows))

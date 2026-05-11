@@ -34,23 +34,23 @@ func (s *SenderService) Send(msg contracts.MarketTickerInfo) error {
 	defer jsonBufferPool.Put(buf)
 
 	if err := json.NewEncoder(buf).Encode(msg); err != nil {
-		return fmt.Errorf("marshal error: %w", err)
+		return fmt.Errorf("send to analyzer: marshal: %w", err)
 	}
 
 	req, err := http.NewRequest(http.MethodPost, s.endpoint, bytes.NewReader(buf.Bytes()))
 	if err != nil {
-		return fmt.Errorf("create request error: %w", err)
+		return fmt.Errorf("send to analyzer: create request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := s.client.Do(req)
 	if err != nil {
-		return fmt.Errorf("send request error: %w", err)
+		return fmt.Errorf("send to analyzer: do request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		return fmt.Errorf("analyzer returned wrong status: %d", resp.StatusCode)
+		return fmt.Errorf("send to analyzer: unexpected status: %d", resp.StatusCode)
 	}
 
 	return nil

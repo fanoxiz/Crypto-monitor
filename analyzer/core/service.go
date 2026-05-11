@@ -34,7 +34,7 @@ func (a *AnalyzerService) ProcessPrices(msg contracts.MarketTickerInfo) error {
 func (a *AnalyzerService) analyzeCoin(coin string) {
 	exchangesData, err := a.store.GetPrices(coin)
 	if err != nil {
-		log.Printf("Ошибка чтения кэша цен: %v", err)
+		log.Printf("level=ERROR component=core event=cache_read_failed coin=%s err=\"%v\"", coin, err)
 		return
 	}
 
@@ -82,7 +82,12 @@ func (a *AnalyzerService) analyzeCoin(coin string) {
 			}
 
 			if err := a.sender.Send(deal); err != nil {
-				log.Printf("Ошибка отправки сделки: %v", err)
+				log.Printf("level=ERROR component=core event=send_deal_failed coin=%s ask_exchange=%s bid_exchange=%s err=\"%v\"",
+					deal.CoinName,
+					deal.AskExchange,
+					deal.BidExchange,
+					err,
+				)
 			}
 		}
 	}

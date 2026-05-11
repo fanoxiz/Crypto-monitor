@@ -24,23 +24,23 @@ func NewSenderService(client *http.Client, endpoint string) *SenderService {
 func (s *SenderService) Send(msg contracts.ProfitDealInfo) error {
 	data, err := json.Marshal(msg)
 	if err != nil {
-		return fmt.Errorf("marshal error: %w", err)
+		return fmt.Errorf("send to executor: marshal: %w", err)
 	}
 
 	req, err := http.NewRequest(http.MethodPost, s.endpoint, bytes.NewBuffer(data))
 	if err != nil {
-		return fmt.Errorf("create request error: %w", err)
+		return fmt.Errorf("send to executor: create request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := s.client.Do(req)
 	if err != nil {
-		return fmt.Errorf("send request error: %w", err)
+		return fmt.Errorf("send to executor: do request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		return fmt.Errorf("executor returned wrong status: %d", resp.StatusCode)
+		return fmt.Errorf("send to executor: unexpected status: %d", resp.StatusCode)
 	}
 
 	return nil
