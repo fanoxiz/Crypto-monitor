@@ -31,6 +31,9 @@ func NewHTTPReceiver(an core.Analyzer) *HTTPReceiver {
 func (rec *HTTPReceiver) Start(port string) error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /prices", rec.handlePrices)
+	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
 	log.Printf("level=INFO component=receiver event=server_started port=%s", port)
 
 	srv := &http.Server{

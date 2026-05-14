@@ -9,7 +9,10 @@ COPY . .
 
 RUN go build -o /bin/app ./executor/main.go
 
-FROM alpine:latest
+
+FROM alpine:3.20
+
+RUN apk add --no-cache ca-certificates
 
 WORKDIR /app
 

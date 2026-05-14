@@ -36,6 +36,13 @@ services:
     depends_on:
       postgres_db:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8082/stats || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    restart: unless-stopped
 
   analyzer:
     build:
@@ -47,8 +54,17 @@ services:
       - EXECUTOR_URL=http://executor:8082/deals
       - REDIS_ADDR=redis:6379
     depends_on:
-      - executor
-      - redis
+      executor:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8081/healthz || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    restart: unless-stopped
 
   fetcher:
     build:
@@ -57,7 +73,9 @@ services:
     environment:
       - ANALYZER_URL=http://analyzer:8081/prices
     depends_on:
-      - analyzer
+      analyzer:
+        condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   postgres_data:
