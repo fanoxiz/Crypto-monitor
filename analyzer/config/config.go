@@ -16,6 +16,7 @@ type Config struct {
 	RedisPassword     string             `yaml:"redis_password" env:"REDIS_PASSWORD" env-default:""`
 	RedisDB           int                `yaml:"redis_db" env:"REDIS_DB" env-default:"0"`
 	RedisKeyPrefix    string             `yaml:"redis_key_prefix" env:"REDIS_KEY_PREFIX" env-default:"analyzer:prices:"`
+	PriceTTL          time.Duration      `yaml:"price_ttl" env:"ANALYZER_PRICE_TTL" env-default:"10s"`
 }
 
 func Load(path string) (Config, error) {

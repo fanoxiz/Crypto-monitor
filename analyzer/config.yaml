@@ -5,6 +5,7 @@ redis_addr: "localhost:6379"
 redis_password: ""
 redis_db: 0
 redis_key_prefix: "analyzer:prices:"
+price_ttl: 10s
 
 # # testing fees
 # fees:
