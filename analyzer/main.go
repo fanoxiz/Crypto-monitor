@@ -44,7 +44,7 @@ func main() {
 		log.Fatalf("level=ERROR component=main event=redis_connect_failed err=\"%v\"", err)
 	}
 
-	priceStore := cache.NewRedisPriceStore(redisClient, cfg.RedisKeyPrefix)
+	priceStore := cache.NewRedisPriceStore(redisClient, cfg.RedisKeyPrefix, cfg.PriceTTL)
 	analyzerService := core.NewAnalyzerService(cfg.Fees, senderService, priceStore)
 	receiver := receiver.NewHTTPReceiver(analyzerService)
 

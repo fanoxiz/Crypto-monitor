@@ -50,6 +50,6 @@ curl -X GET http://localhost:8082/stats
 - [x] Привязать sync.Pool
 - [x] Добавить Redis
 - [ ] Покрыть тестами
-- [ ] Контроль свежести через context / timestamp
+- [x] Контроль свежести через ~~context / timestamp~~ TTL в Redis
 - [ ] Внедрить WebSocket
 - [ ] Перейти на gRPC
