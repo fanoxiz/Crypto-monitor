@@ -1,0 +1,3 @@
+grpc_port: "8082"
+trade_size: 10000.0
+initial_balance: 10000.0

@@ -1,6 +1,6 @@
 # Crypto Monitor
 
-Сервис по поиску потенциально выгодных арбитражных сделок между криптобиржами. Построен по архитектуре Ports & Adapters, имеет 3 микросервиса, связанных по REST API, с расчетом на удобную миграцию на gRPC.
+Сервис по поиску потенциально выгодных арбитражных сделок между криптобиржами. Построен по архитектуре Ports & Adapters, имеет 3 микросервиса, связанных по gRPC.
 
 Роли микросервисов:
 
@@ -21,19 +21,19 @@ flowchart LR
   subgraph fetcher[Fetcher]
     direction LR
     api[
-      **API бирж**
+      API бирж
       Binance
       Bybit
       Bitget
       OKX
     ]
     fetch_q(
-      **fetchQueue**
+      fetchQueue
       Очередь запросов
       к выполнению
     )
     streamChan(
-      **streamChan**
+      streamChan
       Основной канал
       собранных данных
     )
@@ -43,38 +43,38 @@ flowchart LR
   end
 
   analyzer[
-    **Analyzer**
+    Analyzer
     Поиск арбитража
   ]
   executor[
-    **Executor**
+    Executor
     Сохранение сделок
   ]
   redis[(
-    **Redis**
+    Redis
     Кэш последних цен
   )]
   pg[(
-    **PostgreSQL**
+    PostgreSQL
     История сделок
   )]
 
   streamChan -- "senderWorker (x24 штук)" --> analyzer
   analyzer <-- "Хранение цен <br> с учетом TTL" --> redis
-  analyzer -- "HTTP POST /deals <br> JSON выгодной сделки" --> executor
+  analyzer -- "gRPC ProcessDeal<br> ProfitDealInfo" --> executor
   executor -- "INSERT INTO deals" --> pg
 ```
 
 ## Запуск
 
-
+- `make gen-proto` - генерация Go-кода из protobuf (после изменений в `contracts/service.proto`)
 - `make build` - сборка бинарников
 - `make up` - поднятие окружения через Docker Compose
 
-Проверка баланса:
+Проверка баланса (через gRPC):
 
 ```bash
-curl -X GET http://localhost:8082/stats
+grpcurl -plaintext localhost:8082 contracts.ExecutorService/GetStats
 ```
 
 Пример вывода:
@@ -99,9 +99,8 @@ curl -X GET http://localhost:8082/stats
 
 ## Оставшиеся для реализации нововведения
 
-- [x] Привязать sync.Pool
 - [x] Добавить Redis
 - [ ] Покрыть тестами
 - [x] Контроль свежести через ~~context / timestamp~~ TTL в Redis
 - [ ] Внедрить WebSocket
-- [ ] Перейти на gRPC
+- [x] Перейти на gRPC

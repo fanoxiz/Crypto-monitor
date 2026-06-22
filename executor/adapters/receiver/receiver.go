@@ -9,6 +9,7 @@ import (
 	"github.com/fanoxiz/crypto-monitor/contracts/grpcpb"
 	"github.com/fanoxiz/crypto-monitor/executor/core"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -30,6 +31,7 @@ func (rec *GRPCReceiver) Start(port string) error {
 
 	srv := grpc.NewServer()
 	grpcpb.RegisterExecutorServiceServer(srv, rec)
+	reflection.Register(srv)
 
 	log.Printf("level=INFO component=receiver event=server_started port=%s", port)
 	return srv.Serve(lis)
@@ -37,9 +39,9 @@ func (rec *GRPCReceiver) Start(port string) error {
 
 func (rec *GRPCReceiver) ProcessDeal(ctx context.Context, msg *grpcpb.ProfitDealInfo) (*emptypb.Empty, error) {
 	deal := contracts.ProfitDealInfo{
-		CoinName:      fromProtoCoin(msg.GetCoinName()),
-		AskExchange:   fromProtoExchange(msg.GetAskExchange()),
-		BidExchange:   fromProtoExchange(msg.GetBidExchange()),
+		CoinName:      contracts.FromProtoCoin(msg.GetCoinName()),
+		AskExchange:   contracts.FromProtoExchange(msg.GetAskExchange()),
+		BidExchange:   contracts.FromProtoExchange(msg.GetBidExchange()),
 		AskPrice:      msg.GetAskPrice(),
 		BidPrice:      msg.GetBidPrice(),
 		ProfitAbs:     msg.GetProfitAbs(),
@@ -80,32 +82,4 @@ func (rec *GRPCReceiver) GetStats(ctx context.Context, _ *emptypb.Empty) (*grpcp
 		DealsCount:     stats.DealsCount,
 		RecentDeals:    recent,
 	}, nil
-}
-
-func fromProtoCoin(coin grpcpb.CoinName) string {
-	switch coin {
-	case grpcpb.CoinName_COIN_BTC:
-		return "BTC"
-	case grpcpb.CoinName_COIN_ETH:
-		return "ETH"
-	case grpcpb.CoinName_COIN_XAUT:
-		return "XAUt"
-	default:
-		return ""
-	}
-}
-
-func fromProtoExchange(exchange grpcpb.ExchangeName) string {
-	switch exchange {
-	case grpcpb.ExchangeName_EXCHANGE_BINANCE:
-		return "Binance"
-	case grpcpb.ExchangeName_EXCHANGE_BITGET:
-		return "Bitget"
-	case grpcpb.ExchangeName_EXCHANGE_BYBIT:
-		return "Bybit"
-	case grpcpb.ExchangeName_EXCHANGE_OKX:
-		return "OKX"
-	default:
-		return ""
-	}
 }

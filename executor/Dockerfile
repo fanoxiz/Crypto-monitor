@@ -17,5 +17,6 @@ RUN apk add --no-cache ca-certificates netcat-openbsd
 WORKDIR /app
 
 COPY --from=builder /bin/app .
+COPY executor/config.yaml ./executor/config.yaml
 
 CMD ["./app"]
