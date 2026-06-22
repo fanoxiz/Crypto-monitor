@@ -14,7 +14,59 @@
 2. `analyzer` принимает цены, сохраняет в Redis актуальные, пересчитывает реальную цену покупки и продажи с учетом комиссий и ищет положительный спред. Если найден профит, `analyzer` отправляет сделку в `executor`
 3. `executor` аккумулирует информацию по сделкам в PostgreSQL
 
+## Наглядная диаграмма
+
+```mermaid
+flowchart LR
+  subgraph fetcher[Fetcher]
+    direction LR
+    api[
+      **API бирж**
+      Binance
+      Bybit
+      Bitget
+      OKX
+    ]
+    fetch_q(
+      **fetchQueue**
+      Очередь запросов
+      к выполнению
+    )
+    streamChan(
+      **streamChan**
+      Основной канал
+      собранных данных
+    )
+
+    api -- "enqueueFetchTask<br> (каждые freq сек.)" --> fetch_q
+    fetch_q -- "fetchWorker (x96 штук)" --> streamChan
+  end
+
+  analyzer[
+    **Analyzer**
+    Поиск арбитража
+  ]
+  executor[
+    **Executor**
+    Сохранение сделок
+  ]
+  redis[(
+    **Redis**
+    Кэш последних цен
+  )]
+  pg[(
+    **PostgreSQL**
+    История сделок
+  )]
+
+  streamChan -- "senderWorker (x24 штук)" --> analyzer
+  analyzer <-- "Хранение цен <br> с учетом TTL" --> redis
+  analyzer -- "HTTP POST /deals <br> JSON выгодной сделки" --> executor
+  executor -- "INSERT INTO deals" --> pg
+```
+
 ## Запуск
+
 
 - `make build` - сборка бинарников
 - `make up` - поднятие окружения через Docker Compose
