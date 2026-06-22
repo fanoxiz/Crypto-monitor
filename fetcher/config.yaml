@@ -1,7 +1,7 @@
 tracked_coins:
   - BTC
   - ETH
-  - XAUt
+  - XAUT
 request_frequency: 0.5s
 analyzer_grpc_addr: localhost:8081
 http_client_timeout: 8s
