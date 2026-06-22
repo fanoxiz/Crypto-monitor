@@ -9,6 +9,8 @@ import (
 	"github.com/fanoxiz/crypto-monitor/fetcher/adapters/sender"
 	"github.com/fanoxiz/crypto-monitor/fetcher/config"
 	"github.com/fanoxiz/crypto-monitor/fetcher/core"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 func main() {
@@ -28,14 +30,13 @@ func main() {
 		Timeout: cfg.HTTPClientTimeout,
 	}
 
-	analyzerClient := &http.Client{
-		Transport: &http.Transport{
-			MaxIdleConns:        20,
-			MaxIdleConnsPerHost: 20,
-			IdleConnTimeout:     90 * time.Second,
-		},
-		Timeout: cfg.HTTPClientTimeout,
+	grpcConn, err := grpc.NewClient(cfg.AnalyzerGRPCAddr,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		log.Fatalf("level=ERROR component=main event=grpc_dial_failed err=\"%v\"", err)
 	}
+	defer grpcConn.Close()
 
 	exchanges := []core.ExchangeAdapter{
 		api.NewBinanceAdapter(exchangeClient),
@@ -52,7 +53,7 @@ func main() {
 		cfg.HTTPClientTimeout,
 	)
 
-	senderService := sender.NewSenderService(analyzerClient, cfg.AnalyzerEndpoint)
+	senderService := sender.NewSenderService(grpcConn)
 	fetcherService := core.NewFetcherService(exchanges, senderService, poolCfg)
 
 	log.Printf("level=INFO component=main event=service_started exchanges=%d coins=%d", len(exchanges), len(cfg.TrackedCoins))

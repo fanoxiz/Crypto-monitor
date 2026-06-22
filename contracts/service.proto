@@ -1,0 +1,72 @@
+syntax = "proto3";
+
+package contracts;
+
+option go_package = "github.com/fanoxiz/crypto-monitor/contracts/grpcpb";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+
+message BidAsk {
+  double bid = 1;
+  double ask = 2;
+}
+
+enum CoinName {
+  COIN_UNSPECIFIED = 0;
+  COIN_BTC = 1;
+  COIN_ETH = 2;
+  COIN_XAUT = 3;
+}
+
+enum ExchangeName {
+  EXCHANGE_UNSPECIFIED = 0;
+  EXCHANGE_BINANCE = 1;
+  EXCHANGE_BITGET = 2;
+  EXCHANGE_BYBIT = 3;
+  reserved "EXCHANGE_COINBASE";
+  reserved 4;
+  EXCHANGE_OKX = 5;
+}
+
+message MarketTickerInfo {
+  CoinName coin_name = 1;
+  ExchangeName exchange_name = 2;
+  BidAsk price = 3;
+}
+
+message ProfitDealInfo {
+  CoinName coin_name = 1;
+  ExchangeName ask_exchange = 2;
+  ExchangeName bid_exchange = 3;
+  double ask_price = 4;
+  double bid_price = 5;
+  double profit_abs = 6;
+  double profit_percent = 7;
+  google.protobuf.Timestamp timestamp = 8;
+}
+
+message RecentDeal {
+  string coin = 1;
+  string buy_exchange = 2;
+  string sell_exchange = 3;
+  double profit_percent = 4;
+  double earned_usd = 5;
+  google.protobuf.Timestamp created_at = 6;
+}
+
+message DealStats {
+  double current_balance = 1;
+  double total_earned = 2;
+  int64 deals_count = 3;
+  repeated RecentDeal recent_deals = 4;
+}
+
+service AnalyzerService {
+  rpc ProcessPrices(MarketTickerInfo) returns (google.protobuf.Empty);
+}
+
+service ExecutorService {
+  rpc ProcessDeal(ProfitDealInfo) returns (google.protobuf.Empty);
+  rpc GetStats(google.protobuf.Empty) returns (DealStats);
+}

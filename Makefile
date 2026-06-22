@@ -4,8 +4,9 @@ ANALYZER_PKG = ./analyzer/main.go
 EXECUTOR_PKG = ./executor/main.go
 
 .PHONY: \
-all build format ci-fix run-fetcher run-analyzer run-executor \
-up down db-clean dck-clean
+all build format ci-fix up down db-clean dck-clean gen-proto
+
+GEN_PROTO_DIR = /tmp/protoc/include
 
 all: build
 
@@ -25,17 +26,15 @@ format:
 ci-fix:
 	golangci-lint run --fix
 
-run-fetcher:
-	@echo "=== Запуск сервиса fetcher ==="
-	go run $(FETCHER_PKG)
-
-run-analyzer:
-	@echo "=== Запуск сервиса analyzer ==="
-	go run $(ANALYZER_PKG)
-
-run-executor:
-	@echo "=== Запуск сервиса executor ==="
-	go run $(EXECUTOR_PKG)
+gen-proto:
+	protoc \
+		--proto_path=. \
+		--proto_path=$(GEN_PROTO_DIR) \
+		--go_out=. \
+		--go_opt=module=github.com/fanoxiz/crypto-monitor \
+		--go-grpc_out=. \
+		--go-grpc_opt=module=github.com/fanoxiz/crypto-monitor \
+		contracts/service.proto
 
 up:
 	make format

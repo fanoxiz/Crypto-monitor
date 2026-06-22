@@ -12,7 +12,7 @@ RUN go build -o /bin/app ./analyzer/main.go
 
 FROM alpine:3.20
 
-RUN apk add --no-cache ca-certificates
+RUN apk add --no-cache ca-certificates netcat-openbsd
 
 WORKDIR /app
 
