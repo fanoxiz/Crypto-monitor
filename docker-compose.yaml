@@ -26,7 +26,7 @@ services:
       retries: 5
 
   executor:
-    build: 
+    build:
       context: .
       dockerfile: executor/Dockerfile
     ports:
@@ -37,7 +37,7 @@ services:
       postgres_db:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8082/stats || exit 1"]
+      test: ["CMD-SHELL", "nc -z localhost 8082 || exit 1"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -51,7 +51,7 @@ services:
     ports:
       - "8081:8081"
     environment:
-      - EXECUTOR_URL=http://executor:8082/deals
+      - EXECUTOR_GRPC_ADDR=executor:8082
       - REDIS_ADDR=redis:6379
     depends_on:
       executor:
@@ -59,7 +59,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8081/healthz || exit 1"]
+      test: ["CMD-SHELL", "nc -z localhost 8081 || exit 1"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -71,7 +71,7 @@ services:
       context: .
       dockerfile: fetcher/Dockerfile
     environment:
-      - ANALYZER_URL=http://analyzer:8081/prices
+      - ANALYZER_GRPC_ADDR=analyzer:8081
     depends_on:
       analyzer:
         condition: service_healthy

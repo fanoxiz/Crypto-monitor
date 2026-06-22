@@ -29,10 +29,10 @@ func main() {
 	}
 
 	executorService := core.NewExecutorService(repo, tradeSize, initialBalance)
-	httpServer := receiver.NewHTTPReceiver(executorService)
+	grpcServer := receiver.NewGRPCReceiver(executorService)
 
 	log.Printf("level=INFO component=main event=service_started port=8082")
-	if err := httpServer.Start("8082"); err != nil {
+	if err := grpcServer.Start("8082"); err != nil {
 		log.Fatalf("level=ERROR component=main event=server_start_failed err=\"%v\"", err)
 	}
 }

@@ -114,7 +114,8 @@ func (s *FetcherService) fetchSingle(coin string, ex ExchangeAdapter) {
 				Ask: 0,
 			}, // затычка для сброса старой цены
 		}
-		log.Printf("level=ERROR component=core event=fetch_failed coin=%s exchange=%s err=\"%v\" ", coin, ex.GetName(), err)
+		log.Printf("level=ERROR component=core event=fetch_failed coin=%s exchange=%s err=\"%v\" ",
+								coin, ex.GetName(), err)
 		time.Sleep(overflowTimeout)
 		return
 	}
@@ -129,7 +130,8 @@ func (s *FetcherService) fetchSingle(coin string, ex ExchangeAdapter) {
 func (s *FetcherService) senderWorker() {
 	for msg := range s.streamChan {
 		if err := s.sender.Send(msg); err != nil {
-			log.Printf("level=ERROR component=core event=send_failed coin=%s exchange=%s err=\"%v\" ", msg.CoinName, msg.ExchangeName, err)
+			log.Printf("level=ERROR component=core event=send_failed coin=%s exchange=%s err=\"%v \" ",
+									msg.CoinName, msg.ExchangeName, err)
 		}
 	}
 }

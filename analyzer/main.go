@@ -3,8 +3,6 @@ package main
 import (
 	"context"
 	"log"
-	"net/http"
-	"time"
 
 	"github.com/fanoxiz/crypto-monitor/analyzer/adapters/cache"
 	"github.com/fanoxiz/crypto-monitor/analyzer/adapters/receiver"
@@ -12,6 +10,8 @@ import (
 	"github.com/fanoxiz/crypto-monitor/analyzer/config"
 	"github.com/fanoxiz/crypto-monitor/analyzer/core"
 	"github.com/redis/go-redis/v9"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 func main() {
@@ -22,16 +22,15 @@ func main() {
 		log.Fatalf("level=ERROR component=main event=config_load_failed err=\"%v\"", err)
 	}
 
-	openedClient := &http.Client{
-		Transport: &http.Transport{
-			MaxIdleConns:        100,
-			MaxIdleConnsPerHost: 100,
-			IdleConnTimeout:     90 * time.Second,
-		},
-		Timeout: cfg.HTTPClientTimeout,
+	grpcConn, err := grpc.NewClient(cfg.ExecutorGRPCAddr,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		log.Fatalf("level=ERROR component=main event=grpc_dial_failed err=\"%v\"", err)
 	}
+	defer grpcConn.Close()
 
-	senderService := sender.NewSenderService(openedClient, cfg.ExecutorEndpoint)
+	senderService := sender.NewSenderService(grpcConn)
 
 	redisClient := redis.NewClient(&redis.Options{
 		Addr:     cfg.RedisAddr,
@@ -46,10 +45,10 @@ func main() {
 
 	priceStore := cache.NewRedisPriceStore(redisClient, cfg.RedisKeyPrefix, cfg.PriceTTL)
 	analyzerService := core.NewAnalyzerService(cfg.Fees, senderService, priceStore)
-	receiver := receiver.NewHTTPReceiver(analyzerService)
+	grpcReceiver := receiver.NewGRPCReceiver(analyzerService)
 
-	log.Printf("level=INFO component=main event=service_started port=%s", cfg.Port)
-	if err := receiver.Start(cfg.Port); err != nil {
+	log.Printf("level=INFO component=main event=service_started port=%s", cfg.GRPCPort)
+	if err := grpcReceiver.Start(cfg.GRPCPort); err != nil {
 		log.Fatalf("level=ERROR component=main event=server_start_failed err=\"%v\"", err)
 	}
 }
