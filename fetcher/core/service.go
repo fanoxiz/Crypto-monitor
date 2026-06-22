@@ -21,7 +21,7 @@ func (WorkerPoolConfig) Precalculate(coinsCount int, exchangesCount int, frequen
 	fetchRate := float64(coinsCount*exchangesCount) / frequency.Seconds()
 
 	cfg := WorkerPoolConfig{
-		FetchWorkers:    int(math.Ceil(fetchRate * httpTimeout.Seconds())),
+		FetchWorkers:    int(math.Ceil(fetchRate * httpTimeout.Seconds() / 2)),
 		SenderWorkers:   int(fetchRate),
 		FetchQueueSize:  int(math.Ceil(fetchRate * 10)),
 		SenderQueueSize: int(math.Ceil(fetchRate * 10)),
@@ -114,24 +114,22 @@ func (s *FetcherService) fetchSingle(coin string, ex ExchangeAdapter) {
 				Ask: 0,
 			}, // затычка для сброса старой цены
 		}
-		log.Printf("level=ERROR component=core event=fetch_failed coin=%s exchange=%s err=\"%v\"", coin, ex.GetName(), err)
+		log.Printf("level=ERROR component=core event=fetch_failed coin=%s exchange=%s err=\"%v\" ", coin, ex.GetName(), err)
 		time.Sleep(overflowTimeout)
 		return
 	}
 
-	msg := contracts.MarketTickerInfo{
+	s.streamChan <- contracts.MarketTickerInfo{
 		CoinName:     coin,
 		ExchangeName: ex.GetName(),
 		Price:        price,
 	}
-
-	s.streamChan <- msg
 }
 
 func (s *FetcherService) senderWorker() {
 	for msg := range s.streamChan {
 		if err := s.sender.Send(msg); err != nil {
-			log.Printf("level=ERROR component=core event=send_failed coin=%s exchange=%s err=\"%v\"", msg.CoinName, msg.ExchangeName, err)
+			log.Printf("level=ERROR component=core event=send_failed coin=%s exchange=%s err=\"%v\" ", msg.CoinName, msg.ExchangeName, err)
 		}
 	}
 }
