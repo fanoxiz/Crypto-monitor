@@ -3,6 +3,8 @@ package core
 import (
 	"log"
 	"math"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/fanoxiz/crypto-monitor/contracts"
@@ -48,6 +50,9 @@ type FetcherService struct {
 	senders    int
 	fetchQueue chan fetchTask
 	streamChan chan contracts.MarketTickerInfo
+
+	pauseMap map[string]time.Time
+	pauseMu  sync.RWMutex
 }
 
 func NewFetcherService(exchanges []ExchangeAdapter, sender PriceSender, poolCfg WorkerPoolConfig) *FetcherService {
@@ -58,6 +63,7 @@ func NewFetcherService(exchanges []ExchangeAdapter, sender PriceSender, poolCfg 
 		senders:    poolCfg.SenderWorkers,
 		fetchQueue: make(chan fetchTask, poolCfg.FetchQueueSize),
 		streamChan: make(chan contracts.MarketTickerInfo, poolCfg.SenderQueueSize),
+		pauseMap:   make(map[string]time.Time),
 	}
 }
 
@@ -103,20 +109,34 @@ func (s *FetcherService) fetchWorker() {
 }
 
 func (s *FetcherService) fetchSingle(coin string, ex ExchangeAdapter) {
+	s.pauseMu.RLock()
+	pauseUntil := s.pauseMap[ex.GetName()]
+	s.pauseMu.RUnlock()
+
+	if time.Now().Before(pauseUntil) {
+		return
+	}
+
 	price, err := ex.GetPrice(coin)
 
 	if err != nil {
-		s.streamChan <- contracts.MarketTickerInfo{
-			CoinName:     coin,
-			ExchangeName: ex.GetName(),
-			Price: contracts.BidAsk{
-				Bid: 1e9,
-				Ask: 0,
-			}, // затычка для сброса старой цены
+		if strings.Contains(err.Error(), "429") {
+			s.pauseMu.Lock()
+			s.pauseMap[ex.GetName()] = time.Now().Add(overflowTimeout)
+			s.pauseMu.Unlock()
+			log.Printf("level=ERROR component=core event=rate_limit exchange=%s msg=\"paused for %d s\"", ex.GetName(), overflowTimeout)
+
+			s.streamChan <- contracts.MarketTickerInfo{
+				CoinName:     coin,
+				ExchangeName: ex.GetName(),
+				Price: contracts.BidAsk{
+					Bid: 0.0,
+					Ask: math.MaxFloat64,
+				}, // затычка для сброса старой цены
+			}
 		}
-		log.Printf("level=ERROR component=core event=fetch_failed coin=%s exchange=%s err=\"%v\" ",
-			coin, ex.GetName(), err)
-		time.Sleep(overflowTimeout)
+
+		log.Printf("level=ERROR component=core event=fetch_failed coin=%s exchange=%s err=\"%v\" ", coin, ex.GetName(), err)
 		return
 	}
 
