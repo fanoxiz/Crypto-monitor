@@ -71,9 +71,9 @@ services:
       context: .
       dockerfile: fetcher/Dockerfile
     environment:
-      - ANALYZER_GRPC_ADDR=analyzer:8081
+      - REDIS_ADDR=redis:6379
     depends_on:
-      analyzer:
+      redis:
         condition: service_healthy
     restart: unless-stopped
 

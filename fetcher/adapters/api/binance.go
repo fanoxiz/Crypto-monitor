@@ -1,61 +1,60 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
-	"fmt"
-	"net/http"
-	"strconv"
+	"strings"
 
-	"github.com/fanoxiz/crypto-monitor/contracts"
+	"github.com/fanoxiz/crypto-monitor/fetcher/core"
 )
 
 type BinanceAdapter struct {
-	client *http.Client
+	URL string
 }
 
-func NewBinanceAdapter(client *http.Client) *BinanceAdapter {
-	return &BinanceAdapter{
-		client: client,
-	}
-}
-
-func (adap *BinanceAdapter) GetName() string {
+func (BinanceAdapter) Name() string {
 	return "Binance"
 }
 
-func (adap *BinanceAdapter) GetPrice(coinName string) (contracts.BidAsk, error) {
-	url := fmt.Sprintf("https://api.binance.com/api/v3/ticker/bookTicker?symbol=%sUSDT", coinName)
+func (a BinanceAdapter) Stream(ctx context.Context, coins []string, save func(core.Quote) error) error {
+	topics := make([]string, 0, len(coins))
 
-	resp, err := adap.client.Get(url)
-	if err != nil {
-		return contracts.BidAsk{}, fmt.Errorf("binance get price: request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return contracts.BidAsk{}, fmt.Errorf("binance get price: unexpected http status: %d", resp.StatusCode)
+	for _, coin := range coins {
+		topics = append(topics, strings.ToLower(coin)+"usdt@bookTicker")
 	}
 
-	var apiResp struct {
-		Symbol   string `json:"symbol"`
-		BidPrice string `json:"bidPrice"`
-		AskPrice string `json:"askPrice"`
+	request := map[string]any{
+		"method": "SUBSCRIBE",
+		"params": topics,
+		"id":     1,
 	}
 
-	err = json.NewDecoder(resp.Body).Decode(&apiResp)
-	if err != nil {
-		return contracts.BidAsk{}, fmt.Errorf("binance get price: decode response: %w", err)
+	return stream(ctx, a.URL, request, "", decodeBinance, save)
+}
+
+func decodeBinance(raw []byte) (core.Quote, error) {
+	var data struct {
+		Symbol   string `json:"s"`
+		BidPrice string `json:"b"`
+		BidSize  string `json:"B"`
+		AskPrice string `json:"a"`
+		AskSize  string `json:"A"`
 	}
 
-	bid, err := strconv.ParseFloat(apiResp.BidPrice, 64)
-	if err != nil {
-		return contracts.BidAsk{}, fmt.Errorf("binance get price: parse bid price %q: %w", apiResp.BidPrice, err)
+	if err := json.Unmarshal(raw, &data); err != nil {
+		return core.Quote{}, err
 	}
 
-	ask, err := strconv.ParseFloat(apiResp.AskPrice, 64)
-	if err != nil {
-		return contracts.BidAsk{}, fmt.Errorf("binance get price: parse ask price %q: %w", apiResp.AskPrice, err)
+	if data.Symbol == "" {
+		return core.Quote{}, nil
 	}
 
-	return contracts.BidAsk{Bid: bid, Ask: ask}, nil
+	return core.Quote{
+		Coin:     strings.TrimSuffix(data.Symbol, "USDT"),
+		Exchange: "Binance",
+		BidPrice: data.BidPrice,
+		BidSize:  data.BidSize,
+		AskPrice: data.AskPrice,
+		AskSize:  data.AskSize,
+	}, nil
 }

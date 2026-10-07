@@ -1,157 +1,37 @@
 package core
 
 import (
+	"context"
 	"log"
-	"math"
-	"strings"
 	"sync"
-	"time"
-
-	"github.com/fanoxiz/crypto-monitor/contracts"
 )
 
-const overflowTimeout = 5 * time.Second
-
-type WorkerPoolConfig struct {
-	FetchWorkers    int
-	SenderWorkers   int
-	FetchQueueSize  int
-	SenderQueueSize int
-}
-
-func (WorkerPoolConfig) Precalculate(coinsCount int, exchangesCount int, frequency time.Duration, httpTimeout time.Duration) WorkerPoolConfig {
-	fetchRate := float64(coinsCount*exchangesCount) / frequency.Seconds()
-
-	cfg := WorkerPoolConfig{
-		FetchWorkers:    int(math.Ceil(fetchRate * httpTimeout.Seconds() / 2)),
-		SenderWorkers:   int(fetchRate),
-		FetchQueueSize:  int(math.Ceil(fetchRate * 10)),
-		SenderQueueSize: int(math.Ceil(fetchRate * 10)),
-	}
-	log.Printf(
-		"level=INFO component=core event=worker_pool_config fetch_workers=%d sender_workers=%d fetch_queue=%d sender_queue=%d",
-		cfg.FetchWorkers,
-		cfg.SenderWorkers,
-		cfg.FetchQueueSize,
-		cfg.SenderQueueSize,
-	)
-	return cfg
-}
-
-type fetchTask struct {
-	coin string
-	ex   ExchangeAdapter
-}
-
 type FetcherService struct {
-	exchanges  []ExchangeAdapter
-	sender     PriceSender
-	fetchers   int
-	senders    int
-	fetchQueue chan fetchTask
-	streamChan chan contracts.MarketTickerInfo
-
-	pauseMap map[string]time.Time
-	pauseMu  sync.RWMutex
+	exchanges []Exchange
+	store     QuoteStore
 }
 
-func NewFetcherService(exchanges []ExchangeAdapter, sender PriceSender, poolCfg WorkerPoolConfig) *FetcherService {
+func NewFetcherService(exchanges []Exchange, store QuoteStore) *FetcherService {
 	return &FetcherService{
-		exchanges:  exchanges,
-		sender:     sender,
-		fetchers:   poolCfg.FetchWorkers,
-		senders:    poolCfg.SenderWorkers,
-		fetchQueue: make(chan fetchTask, poolCfg.FetchQueueSize),
-		streamChan: make(chan contracts.MarketTickerInfo, poolCfg.SenderQueueSize),
-		pauseMap:   make(map[string]time.Time),
+		exchanges: exchanges,
+		store:     store,
 	}
 }
 
-func (s *FetcherService) Start(coins []string, freq time.Duration) {
-	for range s.fetchers {
-		go s.fetchWorker()
-	}
+func (s *FetcherService) Run(ctx context.Context, coins []string) {
+	var workers sync.WaitGroup
 
-	for range s.senders {
-		go s.senderWorker()
-	}
+	for _, exchange := range s.exchanges {
+		workers.Go(func() {
+			err := exchange.Stream(ctx, coins, func(quote Quote) error {
+				return s.store.Save(ctx, quote)
+			})
 
-	ticker := time.NewTicker(freq)
-	defer ticker.Stop()
-
-	for {
-		<-ticker.C
-		for _, coin := range coins {
-			for _, ex := range s.exchanges {
-				s.enqueueFetchTask(coin, ex)
+			if err != nil && ctx.Err() == nil {
+				log.Printf("%s: %v", exchange.Name(), err)
 			}
-		}
-	}
-}
-
-func (s *FetcherService) enqueueFetchTask(coin string, ex ExchangeAdapter) {
-	task := fetchTask{
-		coin: coin,
-		ex:   ex,
+		})
 	}
 
-	select {
-	case s.fetchQueue <- task:
-	default:
-		log.Printf("level=WARN component=core event=fetch_queue_overflow coin=%s exchange=%s", coin, ex.GetName())
-	}
-}
-
-func (s *FetcherService) fetchWorker() {
-	for task := range s.fetchQueue {
-		s.fetchSingle(task.coin, task.ex)
-	}
-}
-
-func (s *FetcherService) fetchSingle(coin string, ex ExchangeAdapter) {
-	s.pauseMu.RLock()
-	pauseUntil := s.pauseMap[ex.GetName()]
-	s.pauseMu.RUnlock()
-
-	if time.Now().Before(pauseUntil) {
-		return
-	}
-
-	price, err := ex.GetPrice(coin)
-
-	if err != nil {
-		if strings.Contains(err.Error(), "429") {
-			s.pauseMu.Lock()
-			s.pauseMap[ex.GetName()] = time.Now().Add(overflowTimeout)
-			s.pauseMu.Unlock()
-			log.Printf("level=ERROR component=core event=rate_limit exchange=%s msg=\"paused for %d s\"", ex.GetName(), overflowTimeout)
-
-			s.streamChan <- contracts.MarketTickerInfo{
-				CoinName:     coin,
-				ExchangeName: ex.GetName(),
-				Price: contracts.BidAsk{
-					Bid: 0.0,
-					Ask: math.MaxFloat64,
-				}, // затычка для сброса старой цены
-			}
-		}
-
-		log.Printf("level=ERROR component=core event=fetch_failed coin=%s exchange=%s err=\"%v\" ", coin, ex.GetName(), err)
-		return
-	}
-
-	s.streamChan <- contracts.MarketTickerInfo{
-		CoinName:     coin,
-		ExchangeName: ex.GetName(),
-		Price:        price,
-	}
-}
-
-func (s *FetcherService) senderWorker() {
-	for msg := range s.streamChan {
-		if err := s.sender.Send(msg); err != nil {
-			log.Printf("level=ERROR component=core event=send_failed coin=%s exchange=%s err=\"%v \" ",
-				msg.CoinName, msg.ExchangeName, err)
-		}
-	}
+	workers.Wait()
 }

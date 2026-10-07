@@ -1,61 +1,62 @@
 package main
 
 import (
+	"context"
 	"log"
-	"net/http"
-	"time"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/fanoxiz/crypto-monitor/fetcher/adapters/api"
-	"github.com/fanoxiz/crypto-monitor/fetcher/adapters/sender"
+	"github.com/fanoxiz/crypto-monitor/fetcher/adapters/cache"
 	"github.com/fanoxiz/crypto-monitor/fetcher/config"
 	"github.com/fanoxiz/crypto-monitor/fetcher/core"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
+	"github.com/redis/go-redis/v9"
 )
 
 func main() {
-	log.SetPrefix("service=fetcher ")
+	if err := run(); err != nil {
+		log.Fatal(err)
+	}
+}
 
+func run() error {
 	cfg, err := config.Load("fetcher/config.yaml")
 	if err != nil {
-		log.Fatalf("level=ERROR component=main event=config_load_failed err=\"%v\"", err)
+		return err
 	}
 
-	exchangeClient := &http.Client{
-		Transport: &http.Transport{
-			MaxIdleConns:        100,
-			MaxIdleConnsPerHost: 100,
-			IdleConnTimeout:     90 * time.Second,
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	client := redis.NewClient(&redis.Options{
+		Addr: cfg.RedisAddr,
+	})
+	defer client.Close()
+
+	if err := client.Ping(ctx).Err(); err != nil {
+		return err
+	}
+
+	exchanges := []core.Exchange{
+		api.BinanceAdapter{
+			URL: cfg.BinanceURL,
 		},
-		Timeout: cfg.HTTPClientTimeout,
+		api.BybitAdapter{
+			URL: cfg.BybitURL,
+		},
+		api.BitgetAdapter{
+			URL: cfg.BitgetURL,
+		},
+		api.OKXAdapter{
+			URL: cfg.OKXURL,
+		},
 	}
 
-	grpcConn, err := grpc.NewClient(cfg.AnalyzerGRPCAddr,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-	)
-	if err != nil {
-		log.Fatalf("level=ERROR component=main event=grpc_dial_failed err=\"%v\"", err)
-	}
-	defer grpcConn.Close()
+	store := cache.NewRedisQuoteStore(client, cfg.PriceTTL)
+	service := core.NewFetcherService(exchanges, store)
 
-	exchanges := []core.ExchangeAdapter{
-		api.NewBinanceAdapter(exchangeClient),
-		api.NewBybitAdapter(exchangeClient),
-		api.NewBitgetAdapter(exchangeClient),
-		// api.NewCoinbaseAdapter(exchangeClient),
-		api.NewOKXAdapter(exchangeClient),
-	}
+	service.Run(ctx, cfg.TrackedCoins)
 
-	poolCfg := (core.WorkerPoolConfig{}).Precalculate(
-		len(cfg.TrackedCoins),
-		len(exchanges),
-		cfg.RequestFrequency,
-		cfg.HTTPClientTimeout,
-	)
-
-	senderService := sender.NewSenderService(grpcConn)
-	fetcherService := core.NewFetcherService(exchanges, senderService, poolCfg)
-
-	log.Printf("level=INFO component=main event=service_started exchanges=%d coins=%d", len(exchanges), len(cfg.TrackedCoins))
-	fetcherService.Start(cfg.TrackedCoins, cfg.RequestFrequency)
+	return nil
 }

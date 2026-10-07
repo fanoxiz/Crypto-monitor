@@ -1,77 +1,59 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
-	"fmt"
-	"net/http"
-	"strconv"
+	"strings"
 
-	"github.com/fanoxiz/crypto-monitor/contracts"
+	"github.com/fanoxiz/crypto-monitor/fetcher/core"
 )
 
 type BybitAdapter struct {
-	client *http.Client
+	URL string
 }
 
-func NewBybitAdapter(client *http.Client) *BybitAdapter {
-	return &BybitAdapter{
-		client: client,
-	}
-}
-
-func (adap *BybitAdapter) GetName() string {
+func (BybitAdapter) Name() string {
 	return "Bybit"
 }
 
-func (adap *BybitAdapter) GetPrice(coinName string) (contracts.BidAsk, error) {
-	url := fmt.Sprintf("https://api.bybit.com/v5/market/tickers?category=spot&symbol=%sUSDT", coinName)
+func (a BybitAdapter) Stream(ctx context.Context, coins []string, save func(core.Quote) error) error {
+	topics := make([]string, 0, len(coins))
 
-	resp, err := adap.client.Get(url)
-	if err != nil {
-		return contracts.BidAsk{}, fmt.Errorf("bybit get price: request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return contracts.BidAsk{}, fmt.Errorf("bybit get price: unexpected http status: %d", resp.StatusCode)
+	for _, coin := range coins {
+		topics = append(topics, "orderbook.1."+coin+"USDT")
 	}
 
-	var apiResp struct {
-		RetCode int    `json:"retCode"`
-		RetMsg  string `json:"retMsg"`
-		Result  struct {
-			List []struct {
-				Symbol    string `json:"symbol"`
-				Bid1Price string `json:"bid1Price"`
-				Ask1Price string `json:"ask1Price"`
-			} `json:"list"`
-		} `json:"result"`
+	request := map[string]any{
+		"op":   "subscribe",
+		"args": topics,
 	}
 
-	err = json.NewDecoder(resp.Body).Decode(&apiResp)
-	if err != nil {
-		return contracts.BidAsk{}, fmt.Errorf("bybit get price: decode response: %w", err)
+	return stream(ctx, a.URL, request, `{"op":"ping"}`, decodeBybit, save)
+}
+
+func decodeBybit(raw []byte) (core.Quote, error) {
+	var data struct {
+		Data struct {
+			Symbol string     `json:"s"`
+			Bids   [][]string `json:"b"`
+			Asks   [][]string `json:"a"`
+		} `json:"data"`
 	}
 
-	if apiResp.RetCode != 0 {
-		return contracts.BidAsk{}, fmt.Errorf("bybit get price: api error: code=%d msg=%s", apiResp.RetCode, apiResp.RetMsg)
+	if err := json.Unmarshal(raw, &data); err != nil {
+		return core.Quote{}, err
 	}
 
-	if len(apiResp.Result.List) == 0 {
-		return contracts.BidAsk{}, fmt.Errorf("bybit get price: empty data: symbol=%s", coinName)
+	if len(data.Data.Bids) == 0 || len(data.Data.Asks) == 0 || len(data.Data.Bids[0]) < 2 || len(data.Data.Asks[0]) < 2 {
+		return core.Quote{}, nil
 	}
 
-	item := apiResp.Result.List[0]
-
-	bid, err := strconv.ParseFloat(item.Bid1Price, 64)
-	if err != nil {
-		return contracts.BidAsk{}, fmt.Errorf("bybit get price: parse bid price %q: %w", item.Bid1Price, err)
-	}
-
-	ask, err := strconv.ParseFloat(item.Ask1Price, 64)
-	if err != nil {
-		return contracts.BidAsk{}, fmt.Errorf("bybit get price: parse ask price %q: %w", item.Ask1Price, err)
-	}
-
-	return contracts.BidAsk{Bid: bid, Ask: ask}, nil
+	return core.Quote{
+		Coin:     strings.TrimSuffix(data.Data.Symbol, "USDT"),
+		Exchange: "Bybit",
+		BidPrice: data.Data.Bids[0][0],
+		BidSize:  data.Data.Bids[0][1],
+		AskPrice: data.Data.Asks[0][0],
+		AskSize:  data.Data.Asks[0][1],
+	}, nil
 }

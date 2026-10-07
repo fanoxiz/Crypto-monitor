@@ -1,0 +1,9 @@
+.git
+.docs
+.agents
+.codex
+.aws
+.env
+.env.*
+personal
+bin

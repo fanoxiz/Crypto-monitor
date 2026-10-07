@@ -1,14 +1,12 @@
 package core
 
-import (
-	"github.com/fanoxiz/crypto-monitor/contracts"
-)
+import "context"
 
-type ExchangeAdapter interface {
-	GetName() string
-	GetPrice(symbol string) (contracts.BidAsk, error)
+type Exchange interface {
+	Name() string
+	Stream(ctx context.Context, coins []string, save func(Quote) error) error
 }
 
-type PriceSender interface {
-	Send(msg contracts.MarketTickerInfo) error
+type QuoteStore interface {
+	Save(ctx context.Context, quote Quote) error
 }

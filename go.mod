@@ -3,6 +3,7 @@ module github.com/fanoxiz/crypto-monitor
 go 1.25.0
 
 require (
+	github.com/gorilla/websocket v1.5.3
 	github.com/ilyakaznacheev/cleanenv v1.5.0
 	github.com/jackc/pgx/v5 v5.9.2
 	github.com/redis/go-redis/v9 v9.18.0

@@ -2,6 +2,11 @@ tracked_coins:
   - BTC
   - ETH
   - XAUT
-request_frequency: 0.5s
-analyzer_grpc_addr: localhost:8081
-http_client_timeout: 8s
+
+redis_addr: localhost:6379
+price_ttl: 500ms
+
+binance_ws_url: "wss://data-stream.binance.vision/ws"
+bybit_ws_url: "wss://stream.bybit.com/v5/public/spot"
+bitget_ws_url: "wss://ws.bitget.com/v3/ws/public"
+okx_ws_url: "wss://ws.okx.com:8443/ws/v5/public"

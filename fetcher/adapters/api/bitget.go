@@ -1,73 +1,71 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
-	"fmt"
-	"net/http"
-	"strconv"
+	"strings"
 
-	"github.com/fanoxiz/crypto-monitor/contracts"
+	"github.com/fanoxiz/crypto-monitor/fetcher/core"
 )
 
 type BitgetAdapter struct {
-	client *http.Client
+	URL string
 }
 
-func NewBitgetAdapter(client *http.Client) *BitgetAdapter {
-	return &BitgetAdapter{
-		client: client,
-	}
-}
-
-func (adap *BitgetAdapter) GetName() string {
+func (BitgetAdapter) Name() string {
 	return "Bitget"
 }
 
-func (adap *BitgetAdapter) GetPrice(coinName string) (contracts.BidAsk, error) {
-	url := fmt.Sprintf("https://api.bitget.com/api/v2/spot/market/tickers?symbol=%sUSDT", coinName)
+func (a BitgetAdapter) Stream(ctx context.Context, coins []string, save func(core.Quote) error) error {
+	args := make([]map[string]string, 0, len(coins))
 
-	resp, err := adap.client.Get(url)
-	if err != nil {
-		return contracts.BidAsk{}, fmt.Errorf("bitget get price: request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return contracts.BidAsk{}, fmt.Errorf("bitget get price: unexpected http status: %d", resp.StatusCode)
+	for _, coin := range coins {
+		args = append(args, map[string]string{
+			"instType": "spot",
+			"topic":    "books1",
+			"symbol":   coin + "USDT",
+		})
 	}
 
-	var apiResp struct {
-		Code string `json:"code"`
-		Msg  string `json:"msg"`
-		Data []struct {
+	request := map[string]any{
+		"op":   "subscribe",
+		"args": args,
+	}
+
+	return stream(ctx, a.URL, request, "ping", decodeBitget, save)
+}
+
+func decodeBitget(raw []byte) (core.Quote, error) {
+	var data struct {
+		Arg struct {
 			Symbol string `json:"symbol"`
-			BidPr  string `json:"bidPr"`
-			AskPr  string `json:"askPr"`
+		} `json:"arg"`
+		Data []struct {
+			Bids [][]string `json:"b"`
+			Asks [][]string `json:"a"`
 		} `json:"data"`
 	}
 
-	err = json.NewDecoder(resp.Body).Decode(&apiResp)
-	if err != nil {
-		return contracts.BidAsk{}, fmt.Errorf("bitget get price: decode response: %w", err)
+	if err := json.Unmarshal(raw, &data); err != nil {
+		return core.Quote{}, err
 	}
 
-	if apiResp.Code != "00000" {
-		return contracts.BidAsk{}, fmt.Errorf("bitget get price: api error: code=%s msg=%s", apiResp.Code, apiResp.Msg)
+	if len(data.Data) == 0 {
+		return core.Quote{}, nil
 	}
 
-	if len(apiResp.Data) == 0 {
-		return contracts.BidAsk{}, fmt.Errorf("bitget get price: empty data: symbol=%s", coinName)
+	item := data.Data[0]
+
+	if len(item.Bids) == 0 || len(item.Asks) == 0 || len(item.Bids[0]) < 2 || len(item.Asks[0]) < 2 {
+		return core.Quote{}, nil
 	}
 
-	bid, err := strconv.ParseFloat(apiResp.Data[0].BidPr, 64)
-	if err != nil {
-		return contracts.BidAsk{}, fmt.Errorf("bitget get price: parse bid price %q: %w", apiResp.Data[0].BidPr, err)
-	}
-
-	ask, err := strconv.ParseFloat(apiResp.Data[0].AskPr, 64)
-	if err != nil {
-		return contracts.BidAsk{}, fmt.Errorf("bitget get price: parse ask price %q: %w", apiResp.Data[0].AskPr, err)
-	}
-
-	return contracts.BidAsk{Bid: bid, Ask: ask}, nil
+	return core.Quote{
+		Coin:     strings.TrimSuffix(data.Arg.Symbol, "USDT"),
+		Exchange: "Bitget",
+		BidPrice: item.Bids[0][0],
+		BidSize:  item.Bids[0][1],
+		AskPrice: item.Asks[0][0],
+		AskSize:  item.Asks[0][1],
+	}, nil
 }
