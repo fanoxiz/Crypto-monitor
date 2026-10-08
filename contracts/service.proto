@@ -7,11 +7,6 @@ option go_package = "github.com/fanoxiz/crypto-monitor/contracts/grpcpb";
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/empty.proto";
 
-message BidAsk {
-  double bid = 1;
-  double ask = 2;
-}
-
 enum CoinName {
   COIN_UNSPECIFIED = 0;
   COIN_BTC = 1;
@@ -27,12 +22,6 @@ enum ExchangeName {
   reserved "EXCHANGE_COINBASE";
   reserved 4;
   EXCHANGE_OKX = 5;
-}
-
-message MarketTickerInfo {
-  CoinName coin_name = 1;
-  ExchangeName exchange_name = 2;
-  BidAsk price = 3;
 }
 
 message ProfitDealInfo {
@@ -60,10 +49,6 @@ message DealStats {
   double total_earned = 2;
   int64 deals_count = 3;
   repeated RecentDeal recent_deals = 4;
-}
-
-service AnalyzerService {
-  rpc ProcessPrices(MarketTickerInfo) returns (google.protobuf.Empty);
 }
 
 service ExecutorService {

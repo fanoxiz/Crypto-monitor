@@ -1,12 +1,16 @@
 package core
 
-import "context"
+import (
+	"context"
+
+	"github.com/fanoxiz/crypto-monitor/contracts"
+)
 
 type Exchange interface {
 	Name() string
-	Stream(ctx context.Context, coins []string, save func(Quote) error) error
+	Stream(ctx context.Context, coins []string, save func(contracts.Quote) error) error
 }
 
 type QuoteStore interface {
-	Save(ctx context.Context, quote Quote) error
+	Save(ctx context.Context, quote contracts.Quote) error
 }

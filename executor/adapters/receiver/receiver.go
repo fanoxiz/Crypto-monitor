@@ -20,7 +20,9 @@ type GRPCReceiver struct {
 }
 
 func NewGRPCReceiver(ex core.Executor) *GRPCReceiver {
-	return &GRPCReceiver{executor: ex}
+	return &GRPCReceiver{
+		executor: ex,
+	}
 }
 
 func (rec *GRPCReceiver) Start(port string) error {
@@ -39,9 +41,9 @@ func (rec *GRPCReceiver) Start(port string) error {
 
 func (rec *GRPCReceiver) ProcessDeal(ctx context.Context, msg *grpcpb.ProfitDealInfo) (*emptypb.Empty, error) {
 	deal := contracts.ProfitDealInfo{
-		CoinName:      contracts.FromProtoCoin(msg.GetCoinName()),
-		AskExchange:   contracts.FromProtoExchange(msg.GetAskExchange()),
-		BidExchange:   contracts.FromProtoExchange(msg.GetBidExchange()),
+		CoinName:      fromProtoCoin(msg.GetCoinName()),
+		AskExchange:   fromProtoExchange(msg.GetAskExchange()),
+		BidExchange:   fromProtoExchange(msg.GetBidExchange()),
 		AskPrice:      msg.GetAskPrice(),
 		BidPrice:      msg.GetBidPrice(),
 		ProfitAbs:     msg.GetProfitAbs(),
@@ -50,7 +52,7 @@ func (rec *GRPCReceiver) ProcessDeal(ctx context.Context, msg *grpcpb.ProfitDeal
 	}
 
 	if err := rec.executor.ProcessDeal(ctx, deal); err != nil {
-		log.Printf("level=ERROR component=receiver event=process_deal_failed err=\"%v\"", err)
+		log.Printf("level=ERROR component=receiver event=process_deal_failed err=%q", err)
 		return nil, err
 	}
 
@@ -60,7 +62,7 @@ func (rec *GRPCReceiver) ProcessDeal(ctx context.Context, msg *grpcpb.ProfitDeal
 func (rec *GRPCReceiver) GetStats(ctx context.Context, _ *emptypb.Empty) (*grpcpb.DealStats, error) {
 	stats, err := rec.executor.GetStats(ctx)
 	if err != nil {
-		log.Printf("level=ERROR component=receiver event=stats_failed err=\"%v\"", err)
+		log.Printf("level=ERROR component=receiver event=stats_failed err=%q", err)
 		return nil, err
 	}
 

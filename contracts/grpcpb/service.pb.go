@@ -130,118 +130,6 @@ func (ExchangeName) EnumDescriptor() ([]byte, []int) {
 	return file_contracts_service_proto_rawDescGZIP(), []int{1}
 }
 
-type BidAsk struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Bid           float64                `protobuf:"fixed64,1,opt,name=bid,proto3" json:"bid,omitempty"`
-	Ask           float64                `protobuf:"fixed64,2,opt,name=ask,proto3" json:"ask,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *BidAsk) Reset() {
-	*x = BidAsk{}
-	mi := &file_contracts_service_proto_msgTypes[0]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *BidAsk) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*BidAsk) ProtoMessage() {}
-
-func (x *BidAsk) ProtoReflect() protoreflect.Message {
-	mi := &file_contracts_service_proto_msgTypes[0]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use BidAsk.ProtoReflect.Descriptor instead.
-func (*BidAsk) Descriptor() ([]byte, []int) {
-	return file_contracts_service_proto_rawDescGZIP(), []int{0}
-}
-
-func (x *BidAsk) GetBid() float64 {
-	if x != nil {
-		return x.Bid
-	}
-	return 0
-}
-
-func (x *BidAsk) GetAsk() float64 {
-	if x != nil {
-		return x.Ask
-	}
-	return 0
-}
-
-type MarketTickerInfo struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	CoinName      CoinName               `protobuf:"varint,1,opt,name=coin_name,json=coinName,proto3,enum=contracts.CoinName" json:"coin_name,omitempty"`
-	ExchangeName  ExchangeName           `protobuf:"varint,2,opt,name=exchange_name,json=exchangeName,proto3,enum=contracts.ExchangeName" json:"exchange_name,omitempty"`
-	Price         *BidAsk                `protobuf:"bytes,3,opt,name=price,proto3" json:"price,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *MarketTickerInfo) Reset() {
-	*x = MarketTickerInfo{}
-	mi := &file_contracts_service_proto_msgTypes[1]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *MarketTickerInfo) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*MarketTickerInfo) ProtoMessage() {}
-
-func (x *MarketTickerInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_contracts_service_proto_msgTypes[1]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use MarketTickerInfo.ProtoReflect.Descriptor instead.
-func (*MarketTickerInfo) Descriptor() ([]byte, []int) {
-	return file_contracts_service_proto_rawDescGZIP(), []int{1}
-}
-
-func (x *MarketTickerInfo) GetCoinName() CoinName {
-	if x != nil {
-		return x.CoinName
-	}
-	return CoinName_COIN_UNSPECIFIED
-}
-
-func (x *MarketTickerInfo) GetExchangeName() ExchangeName {
-	if x != nil {
-		return x.ExchangeName
-	}
-	return ExchangeName_EXCHANGE_UNSPECIFIED
-}
-
-func (x *MarketTickerInfo) GetPrice() *BidAsk {
-	if x != nil {
-		return x.Price
-	}
-	return nil
-}
-
 type ProfitDealInfo struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	CoinName      CoinName               `protobuf:"varint,1,opt,name=coin_name,json=coinName,proto3,enum=contracts.CoinName" json:"coin_name,omitempty"`
@@ -258,7 +146,7 @@ type ProfitDealInfo struct {
 
 func (x *ProfitDealInfo) Reset() {
 	*x = ProfitDealInfo{}
-	mi := &file_contracts_service_proto_msgTypes[2]
+	mi := &file_contracts_service_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -270,7 +158,7 @@ func (x *ProfitDealInfo) String() string {
 func (*ProfitDealInfo) ProtoMessage() {}
 
 func (x *ProfitDealInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_contracts_service_proto_msgTypes[2]
+	mi := &file_contracts_service_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -283,7 +171,7 @@ func (x *ProfitDealInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProfitDealInfo.ProtoReflect.Descriptor instead.
 func (*ProfitDealInfo) Descriptor() ([]byte, []int) {
-	return file_contracts_service_proto_rawDescGZIP(), []int{2}
+	return file_contracts_service_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *ProfitDealInfo) GetCoinName() CoinName {
@@ -356,7 +244,7 @@ type RecentDeal struct {
 
 func (x *RecentDeal) Reset() {
 	*x = RecentDeal{}
-	mi := &file_contracts_service_proto_msgTypes[3]
+	mi := &file_contracts_service_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -368,7 +256,7 @@ func (x *RecentDeal) String() string {
 func (*RecentDeal) ProtoMessage() {}
 
 func (x *RecentDeal) ProtoReflect() protoreflect.Message {
-	mi := &file_contracts_service_proto_msgTypes[3]
+	mi := &file_contracts_service_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -381,7 +269,7 @@ func (x *RecentDeal) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RecentDeal.ProtoReflect.Descriptor instead.
 func (*RecentDeal) Descriptor() ([]byte, []int) {
-	return file_contracts_service_proto_rawDescGZIP(), []int{3}
+	return file_contracts_service_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *RecentDeal) GetCoin() string {
@@ -438,7 +326,7 @@ type DealStats struct {
 
 func (x *DealStats) Reset() {
 	*x = DealStats{}
-	mi := &file_contracts_service_proto_msgTypes[4]
+	mi := &file_contracts_service_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -450,7 +338,7 @@ func (x *DealStats) String() string {
 func (*DealStats) ProtoMessage() {}
 
 func (x *DealStats) ProtoReflect() protoreflect.Message {
-	mi := &file_contracts_service_proto_msgTypes[4]
+	mi := &file_contracts_service_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -463,7 +351,7 @@ func (x *DealStats) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DealStats.ProtoReflect.Descriptor instead.
 func (*DealStats) Descriptor() ([]byte, []int) {
-	return file_contracts_service_proto_rawDescGZIP(), []int{4}
+	return file_contracts_service_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *DealStats) GetCurrentBalance() float64 {
@@ -498,14 +386,7 @@ var File_contracts_service_proto protoreflect.FileDescriptor
 
 const file_contracts_service_proto_rawDesc = "" +
 	"\n" +
-	"\x17contracts/service.proto\x12\tcontracts\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1bgoogle/protobuf/empty.proto\",\n" +
-	"\x06BidAsk\x12\x10\n" +
-	"\x03bid\x18\x01 \x01(\x01R\x03bid\x12\x10\n" +
-	"\x03ask\x18\x02 \x01(\x01R\x03ask\"\xab\x01\n" +
-	"\x10MarketTickerInfo\x120\n" +
-	"\tcoin_name\x18\x01 \x01(\x0e2\x13.contracts.CoinNameR\bcoinName\x12<\n" +
-	"\rexchange_name\x18\x02 \x01(\x0e2\x17.contracts.ExchangeNameR\fexchangeName\x12'\n" +
-	"\x05price\x18\x03 \x01(\v2\x11.contracts.BidAskR\x05price\"\xf4\x02\n" +
+	"\x17contracts/service.proto\x12\tcontracts\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1bgoogle/protobuf/empty.proto\"\xf4\x02\n" +
 	"\x0eProfitDealInfo\x120\n" +
 	"\tcoin_name\x18\x01 \x01(\x0e2\x13.contracts.CoinNameR\bcoinName\x12:\n" +
 	"\fask_exchange\x18\x02 \x01(\x0e2\x17.contracts.ExchangeNameR\vaskExchange\x12:\n" +
@@ -542,9 +423,7 @@ const file_contracts_service_proto_rawDesc = "" +
 	"\x10EXCHANGE_BINANCE\x10\x01\x12\x13\n" +
 	"\x0fEXCHANGE_BITGET\x10\x02\x12\x12\n" +
 	"\x0eEXCHANGE_BYBIT\x10\x03\x12\x10\n" +
-	"\fEXCHANGE_OKX\x10\x05\"\x04\b\x04\x10\x04*\x11EXCHANGE_COINBASE2W\n" +
-	"\x0fAnalyzerService\x12D\n" +
-	"\rProcessPrices\x12\x1b.contracts.MarketTickerInfo\x1a\x16.google.protobuf.Empty2\x8d\x01\n" +
+	"\fEXCHANGE_OKX\x10\x05\"\x04\b\x04\x10\x04*\x11EXCHANGE_COINBASE2\x8d\x01\n" +
 	"\x0fExecutorService\x12@\n" +
 	"\vProcessDeal\x12\x19.contracts.ProfitDealInfo\x1a\x16.google.protobuf.Empty\x128\n" +
 	"\bGetStats\x12\x16.google.protobuf.Empty\x1a\x14.contracts.DealStatsB4Z2github.com/fanoxiz/crypto-monitor/contracts/grpcpbb\x06proto3"
@@ -562,39 +441,32 @@ func file_contracts_service_proto_rawDescGZIP() []byte {
 }
 
 var file_contracts_service_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_contracts_service_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_contracts_service_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_contracts_service_proto_goTypes = []any{
 	(CoinName)(0),                 // 0: contracts.CoinName
 	(ExchangeName)(0),             // 1: contracts.ExchangeName
-	(*BidAsk)(nil),                // 2: contracts.BidAsk
-	(*MarketTickerInfo)(nil),      // 3: contracts.MarketTickerInfo
-	(*ProfitDealInfo)(nil),        // 4: contracts.ProfitDealInfo
-	(*RecentDeal)(nil),            // 5: contracts.RecentDeal
-	(*DealStats)(nil),             // 6: contracts.DealStats
-	(*timestamppb.Timestamp)(nil), // 7: google.protobuf.Timestamp
-	(*emptypb.Empty)(nil),         // 8: google.protobuf.Empty
+	(*ProfitDealInfo)(nil),        // 2: contracts.ProfitDealInfo
+	(*RecentDeal)(nil),            // 3: contracts.RecentDeal
+	(*DealStats)(nil),             // 4: contracts.DealStats
+	(*timestamppb.Timestamp)(nil), // 5: google.protobuf.Timestamp
+	(*emptypb.Empty)(nil),         // 6: google.protobuf.Empty
 }
 var file_contracts_service_proto_depIdxs = []int32{
-	0,  // 0: contracts.MarketTickerInfo.coin_name:type_name -> contracts.CoinName
-	1,  // 1: contracts.MarketTickerInfo.exchange_name:type_name -> contracts.ExchangeName
-	2,  // 2: contracts.MarketTickerInfo.price:type_name -> contracts.BidAsk
-	0,  // 3: contracts.ProfitDealInfo.coin_name:type_name -> contracts.CoinName
-	1,  // 4: contracts.ProfitDealInfo.ask_exchange:type_name -> contracts.ExchangeName
-	1,  // 5: contracts.ProfitDealInfo.bid_exchange:type_name -> contracts.ExchangeName
-	7,  // 6: contracts.ProfitDealInfo.timestamp:type_name -> google.protobuf.Timestamp
-	7,  // 7: contracts.RecentDeal.created_at:type_name -> google.protobuf.Timestamp
-	5,  // 8: contracts.DealStats.recent_deals:type_name -> contracts.RecentDeal
-	3,  // 9: contracts.AnalyzerService.ProcessPrices:input_type -> contracts.MarketTickerInfo
-	4,  // 10: contracts.ExecutorService.ProcessDeal:input_type -> contracts.ProfitDealInfo
-	8,  // 11: contracts.ExecutorService.GetStats:input_type -> google.protobuf.Empty
-	8,  // 12: contracts.AnalyzerService.ProcessPrices:output_type -> google.protobuf.Empty
-	8,  // 13: contracts.ExecutorService.ProcessDeal:output_type -> google.protobuf.Empty
-	6,  // 14: contracts.ExecutorService.GetStats:output_type -> contracts.DealStats
-	12, // [12:15] is the sub-list for method output_type
-	9,  // [9:12] is the sub-list for method input_type
-	9,  // [9:9] is the sub-list for extension type_name
-	9,  // [9:9] is the sub-list for extension extendee
-	0,  // [0:9] is the sub-list for field type_name
+	0, // 0: contracts.ProfitDealInfo.coin_name:type_name -> contracts.CoinName
+	1, // 1: contracts.ProfitDealInfo.ask_exchange:type_name -> contracts.ExchangeName
+	1, // 2: contracts.ProfitDealInfo.bid_exchange:type_name -> contracts.ExchangeName
+	5, // 3: contracts.ProfitDealInfo.timestamp:type_name -> google.protobuf.Timestamp
+	5, // 4: contracts.RecentDeal.created_at:type_name -> google.protobuf.Timestamp
+	3, // 5: contracts.DealStats.recent_deals:type_name -> contracts.RecentDeal
+	2, // 6: contracts.ExecutorService.ProcessDeal:input_type -> contracts.ProfitDealInfo
+	6, // 7: contracts.ExecutorService.GetStats:input_type -> google.protobuf.Empty
+	6, // 8: contracts.ExecutorService.ProcessDeal:output_type -> google.protobuf.Empty
+	4, // 9: contracts.ExecutorService.GetStats:output_type -> contracts.DealStats
+	8, // [8:10] is the sub-list for method output_type
+	6, // [6:8] is the sub-list for method input_type
+	6, // [6:6] is the sub-list for extension type_name
+	6, // [6:6] is the sub-list for extension extendee
+	0, // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_contracts_service_proto_init() }
@@ -608,9 +480,9 @@ func file_contracts_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_contracts_service_proto_rawDesc), len(file_contracts_service_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   5,
+			NumMessages:   3,
 			NumExtensions: 0,
-			NumServices:   2,
+			NumServices:   1,
 		},
 		GoTypes:           file_contracts_service_proto_goTypes,
 		DependencyIndexes: file_contracts_service_proto_depIdxs,

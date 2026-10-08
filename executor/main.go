@@ -13,10 +13,11 @@ import (
 
 func main() {
 	log.SetPrefix("service=executor ")
+	log.SetFlags(log.LstdFlags | log.LUTC)
 
 	cfg, err := config.Load("executor/config.yaml")
 	if err != nil {
-		log.Fatalf("level=ERROR component=main event=config_load_failed err=\"%v\"", err)
+		log.Fatalf("level=ERROR component=main event=config_load_failed err=%q", err)
 	}
 
 	dbUrl := os.Getenv("DATABASE_URL")
@@ -26,7 +27,7 @@ func main() {
 
 	repo, err := db.NewPostgresRepo(context.Background(), dbUrl, cfg.InitialBalance)
 	if err != nil {
-		log.Fatalf("level=ERROR component=main event=db_connect_failed err=\"%v\"", err)
+		log.Fatalf("level=ERROR component=main event=db_connect_failed err=%q", err)
 	}
 
 	executorService := core.NewExecutorService(repo, cfg.TradeSize, cfg.InitialBalance)
@@ -34,6 +35,6 @@ func main() {
 
 	log.Printf("level=INFO component=main event=service_started port=%s", cfg.GRPCPort)
 	if err := grpcServer.Start(cfg.GRPCPort); err != nil {
-		log.Fatalf("level=ERROR component=main event=server_start_failed err=\"%v\"", err)
+		log.Fatalf("level=ERROR component=main event=server_start_failed err=%q", err)
 	}
 }

@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/fanoxiz/crypto-monitor/fetcher/core"
+	"github.com/fanoxiz/crypto-monitor/contracts"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -21,7 +21,7 @@ func NewRedisQuoteStore(client *redis.Client, ttl time.Duration) *RedisQuoteStor
 	}
 }
 
-func (s *RedisQuoteStore) Save(ctx context.Context, quote core.Quote) error {
+func (s *RedisQuoteStore) Save(ctx context.Context, quote contracts.Quote) error {
 	data, err := json.Marshal(quote)
 	if err != nil {
 		return err

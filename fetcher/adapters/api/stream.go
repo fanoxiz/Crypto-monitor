@@ -4,11 +4,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/fanoxiz/crypto-monitor/fetcher/core"
+	"github.com/fanoxiz/crypto-monitor/contracts"
 	"github.com/gorilla/websocket"
 )
 
-func stream(ctx context.Context, endpoint string, request any, heartbeat string, decode func([]byte) (core.Quote, error), save func(core.Quote) error) error {
+func stream(ctx context.Context, endpoint string, request any, heartbeat string, decode func([]byte) (contracts.Quote, error), save func(contracts.Quote) error) error {
 	conn, _, err := websocket.DefaultDialer.DialContext(ctx, endpoint, nil)
 	if err != nil {
 		return err

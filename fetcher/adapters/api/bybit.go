@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/fanoxiz/crypto-monitor/fetcher/core"
+	"github.com/fanoxiz/crypto-monitor/contracts"
 )
 
 type BybitAdapter struct {
@@ -16,7 +16,7 @@ func (BybitAdapter) Name() string {
 	return "Bybit"
 }
 
-func (a BybitAdapter) Stream(ctx context.Context, coins []string, save func(core.Quote) error) error {
+func (a BybitAdapter) Stream(ctx context.Context, coins []string, save func(contracts.Quote) error) error {
 	topics := make([]string, 0, len(coins))
 
 	for _, coin := range coins {
@@ -31,7 +31,7 @@ func (a BybitAdapter) Stream(ctx context.Context, coins []string, save func(core
 	return stream(ctx, a.URL, request, `{"op":"ping"}`, decodeBybit, save)
 }
 
-func decodeBybit(raw []byte) (core.Quote, error) {
+func decodeBybit(raw []byte) (contracts.Quote, error) {
 	var data struct {
 		Data struct {
 			Symbol string     `json:"s"`
@@ -41,14 +41,14 @@ func decodeBybit(raw []byte) (core.Quote, error) {
 	}
 
 	if err := json.Unmarshal(raw, &data); err != nil {
-		return core.Quote{}, err
+		return contracts.Quote{}, err
 	}
 
 	if len(data.Data.Bids) == 0 || len(data.Data.Asks) == 0 || len(data.Data.Bids[0]) < 2 || len(data.Data.Asks[0]) < 2 {
-		return core.Quote{}, nil
+		return contracts.Quote{}, nil
 	}
 
-	return core.Quote{
+	return contracts.Quote{
 		Coin:     strings.TrimSuffix(data.Data.Symbol, "USDT"),
 		Exchange: "Bybit",
 		BidPrice: data.Data.Bids[0][0],

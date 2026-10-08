@@ -15,8 +15,11 @@ import (
 )
 
 func main() {
+	log.SetPrefix("service=fetcher ")
+	log.SetFlags(log.LstdFlags | log.LUTC)
+
 	if err := run(); err != nil {
-		log.Fatal(err)
+		log.Fatalf("level=ERROR component=main event=startup_failed err=%q", err)
 	}
 }
 

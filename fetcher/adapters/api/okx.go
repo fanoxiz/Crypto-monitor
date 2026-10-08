@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/fanoxiz/crypto-monitor/fetcher/core"
+	"github.com/fanoxiz/crypto-monitor/contracts"
 )
 
 type OKXAdapter struct {
@@ -16,7 +16,7 @@ func (OKXAdapter) Name() string {
 	return "OKX"
 }
 
-func (a OKXAdapter) Stream(ctx context.Context, coins []string, save func(core.Quote) error) error {
+func (a OKXAdapter) Stream(ctx context.Context, coins []string, save func(contracts.Quote) error) error {
 	args := make([]map[string]string, 0, len(coins))
 
 	for _, coin := range coins {
@@ -34,7 +34,7 @@ func (a OKXAdapter) Stream(ctx context.Context, coins []string, save func(core.Q
 	return stream(ctx, a.URL, request, "ping", decodeOKX, save)
 }
 
-func decodeOKX(raw []byte) (core.Quote, error) {
+func decodeOKX(raw []byte) (contracts.Quote, error) {
 	var data struct {
 		Arg struct {
 			Symbol string `json:"instId"`
@@ -46,20 +46,20 @@ func decodeOKX(raw []byte) (core.Quote, error) {
 	}
 
 	if err := json.Unmarshal(raw, &data); err != nil {
-		return core.Quote{}, err
+		return contracts.Quote{}, err
 	}
 
 	if len(data.Data) == 0 {
-		return core.Quote{}, nil
+		return contracts.Quote{}, nil
 	}
 
 	item := data.Data[0]
 
 	if len(item.Bids) == 0 || len(item.Asks) == 0 || len(item.Bids[0]) < 2 || len(item.Asks[0]) < 2 {
-		return core.Quote{}, nil
+		return contracts.Quote{}, nil
 	}
 
-	return core.Quote{
+	return contracts.Quote{
 		Coin:     strings.TrimSuffix(data.Arg.Symbol, "-USDT"),
 		Exchange: "OKX",
 		BidPrice: item.Bids[0][0],

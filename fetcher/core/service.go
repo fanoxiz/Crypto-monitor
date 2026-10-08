@@ -4,6 +4,8 @@ import (
 	"context"
 	"log"
 	"sync"
+
+	"github.com/fanoxiz/crypto-monitor/contracts"
 )
 
 type FetcherService struct {
@@ -23,12 +25,12 @@ func (s *FetcherService) Run(ctx context.Context, coins []string) {
 
 	for _, exchange := range s.exchanges {
 		workers.Go(func() {
-			err := exchange.Stream(ctx, coins, func(quote Quote) error {
+			err := exchange.Stream(ctx, coins, func(quote contracts.Quote) error {
 				return s.store.Save(ctx, quote)
 			})
 
 			if err != nil && ctx.Err() == nil {
-				log.Printf("%s: %v", exchange.Name(), err)
+				log.Printf("level=ERROR component=core event=stream_failed exchange=%s err=%q", exchange.Name(), err)
 			}
 		})
 	}

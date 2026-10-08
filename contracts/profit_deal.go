@@ -2,17 +2,6 @@ package contracts
 
 import "time"
 
-type BidAsk struct {
-	Bid float64
-	Ask float64
-}
-
-type MarketTickerInfo struct {
-	CoinName     string `json:"coin"`
-	ExchangeName string `json:"exchange"`
-	Price        BidAsk `json:"price"`
-}
-
 type ProfitDealInfo struct {
 	CoinName      string    `json:"coin"`
 	AskExchange   string    `json:"buy_exchange"`
