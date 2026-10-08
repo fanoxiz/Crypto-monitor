@@ -1,4 +1,5 @@
 personal/
 /.docs/decisions/
 /AGENTS.md
-/REVIEW.md
+/REVIEW*.md
+/bin/

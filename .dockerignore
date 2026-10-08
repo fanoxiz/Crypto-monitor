@@ -7,3 +7,5 @@
 .env.*
 personal
 bin
+AGENTS.md
+REVIEW*.md

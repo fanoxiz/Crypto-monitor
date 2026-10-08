@@ -8,9 +8,12 @@ import (
 	"syscall"
 
 	"github.com/fanoxiz/crypto-monitor/analyzer/adapters/cache"
+	"github.com/fanoxiz/crypto-monitor/analyzer/adapters/sender"
 	"github.com/fanoxiz/crypto-monitor/analyzer/config"
 	"github.com/fanoxiz/crypto-monitor/analyzer/core"
 	"github.com/redis/go-redis/v9"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 func main() {
@@ -40,8 +43,15 @@ func run() error {
 		return err
 	}
 
+	conn, err := grpc.NewClient(cfg.ExecutorGRPCAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
 	store := cache.NewRedisQuoteStore(client, cfg.TrackedCoins, cfg.Exchanges)
-	service := core.NewAnalyzerService(cfg.Fees, store, cfg.MaxQuoteAge)
+	dealSender := sender.NewGRPCSender(conn)
+	service := core.NewAnalyzerService(cfg.Fees, store, dealSender, cfg.MaxQuoteAge)
 
 	service.Run(ctx)
 

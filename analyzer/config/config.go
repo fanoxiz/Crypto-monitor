@@ -10,11 +10,12 @@ import (
 )
 
 type Config struct {
-	TrackedCoins []string           `yaml:"tracked_coins" env:"TRACKED_COINS"`
-	Exchanges    []string           `yaml:"exchanges"`
-	RedisAddr    string             `yaml:"redis_addr" env:"REDIS_ADDR" env-default:"localhost:6379"`
-	MaxQuoteAge  time.Duration      `yaml:"max_quote_age" env:"ANALYZER_MAX_QUOTE_AGE" env-default:"500ms"`
-	Fees         map[string]float64 `yaml:"fees"`
+	TrackedCoins     []string           `yaml:"tracked_coins" env:"TRACKED_COINS"`
+	Exchanges        []string           `yaml:"exchanges"`
+	RedisAddr        string             `yaml:"redis_addr" env:"REDIS_ADDR" env-default:"localhost:6379"`
+	MaxQuoteAge      time.Duration      `yaml:"max_quote_age" env:"ANALYZER_MAX_QUOTE_AGE" env-default:"500ms"`
+	Fees             map[string]float64 `yaml:"fees"`
+	ExecutorGRPCAddr string             `yaml:"executor_grpc_addr" env:"EXECUTOR_GRPC_ADDR" env-default:"localhost:8082"`
 }
 
 func Load(path string) (Config, error) {

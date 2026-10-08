@@ -1,66 +1,59 @@
-BIN_DIR=bin
-FETCHER_PKG = ./fetcher/main.go
-ANALYZER_PKG = ./analyzer/main.go
-EXECUTOR_PKG = ./executor/main.go
-GEN_PROTO_DIR = /usr/include
+BIN_DIR ?= bin
+GEN_PROTO_DIR ?= /usr/include
+GO ?= go
+PROTOC ?= protoc
+COMPOSE ?= docker compose
 
-.PHONY: \
-all build format ci-fix up down db-clean dck-clean gen-proto test tools
+.PHONY: all build format tidy check test gen-proto up reup down logs db-clean dck-clean tools
 
 all: build
 
 build:
-	@echo "=== Сборка ==="
-	make format
-	go build -o $(BIN_DIR)/fetcher $(FETCHER_PKG)
-	go build -o $(BIN_DIR)/analyzer $(ANALYZER_PKG)
-	go build -o $(BIN_DIR)/executor $(EXECUTOR_PKG)
+	mkdir -p "$(BIN_DIR)"
+	$(GO) build -o "$(BIN_DIR)/fetcher" ./fetcher
+	$(GO) build -o "$(BIN_DIR)/analyzer" ./analyzer
+	$(GO) build -o "$(BIN_DIR)/executor" ./executor
 
 format:
-	go mod tidy
-	go mod download
-	gofmt -s -w .
+	gofmt -w analyzer contracts executor fetcher
 
-ci-fix:
-	golangci-lint run --fix
+tidy:
+	$(GO) mod tidy
+
+check:
+	$(GO) vet ./...
+
+test:
+	$(GO) test ./...
 
 gen-proto:
-	protoc \
+	$(PROTOC) \
 		--proto_path=. \
-		--proto_path=$(GEN_PROTO_DIR) \
+		--proto_path="$(GEN_PROTO_DIR)" \
 		--go_out=. \
 		--go_opt=module=github.com/fanoxiz/crypto-monitor \
 		--go-grpc_out=. \
 		--go-grpc_opt=module=github.com/fanoxiz/crypto-monitor \
 		contracts/service.proto
 
-up: down
-	make format
-	@echo "=== Запуск контейнеров ==="
-	docker compose up
+up:
+	$(COMPOSE) up --build
 
-reup: down gen-proto format
-	@echo "=== Перезапуск контейнеров ==="
-	docker compose up --build
+reup: up
 
 down:
-	@echo "=== Остановка контейнеров ==="
-	docker compose down
+	$(COMPOSE) down
+
+logs:
+	$(COMPOSE) logs -f fetcher analyzer executor
 
 db-clean:
-	@echo "=== Остановка контейнеров ==="
-	docker compose down -v
+	$(COMPOSE) down -v
 
 dck-clean:
-	@echo "=== Чистка docker ==="
-	docker compose down -v --remove-orphans
-	docker image prune -f
+	$(COMPOSE) down -v --remove-orphans --rmi local
 
 tools:
-	@echo "=== Установка зависимостей и утилит ==="
-	go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest
-	go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
-	go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
-	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b $$(go env GOPATH)/bin v1.61.0
-	@echo "Проверка protoc (если ошибка, установите по инструкции https://grpc.io/docs/protoc-installation/):"
-	@which protoc && echo "protoc OK" || echo "protoc NOT FOUND"
+	command -v $(PROTOC)
+	$(GO) install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
+	$(GO) install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.6.2

@@ -2,59 +2,45 @@ package core
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"math"
+	"strings"
 
-	"github.com/fanoxiz/crypto-monitor/contracts" // allowed core dependency
+	"github.com/fanoxiz/crypto-monitor/contracts"
 )
 
-const recentDealsLimit = 1
+var ErrInvalidDeal = errors.New("invalid deal")
 
 type ExecutorService struct {
-	repo           DBRepository
-	tradeSize      float64
-	initialBalance float64
+	repo DBRepository
 }
 
-func NewExecutorService(repo DBRepository, tradeSize float64, initialBalance float64) *ExecutorService {
+func NewExecutorService(repo DBRepository) *ExecutorService {
 	return &ExecutorService{
-		repo:           repo,
-		tradeSize:      tradeSize,
-		initialBalance: initialBalance,
+		repo: repo,
 	}
 }
 
 func (s *ExecutorService) ProcessDeal(ctx context.Context, deal contracts.ProfitDealInfo) error {
-	earned := s.tradeSize * (deal.ProfitPercent / 100.0)
-	return s.repo.SaveDealAndUpdateBalance(ctx, deal, earned)
-}
-
-func (s *ExecutorService) GetCurrentBalance(ctx context.Context) (float64, error) {
-	return s.repo.GetBalance(ctx)
-}
-
-func (s *ExecutorService) GetStats(ctx context.Context) (DealStats, error) {
-	balance, err := s.repo.GetBalance(ctx)
-	if err != nil {
-		return DealStats{}, err
+	if strings.TrimSpace(deal.Coin) == "" ||
+		strings.TrimSpace(deal.BuyExchange) == "" ||
+		strings.TrimSpace(deal.SellExchange) == "" ||
+		deal.BuyExchange == deal.SellExchange ||
+		deal.DetectedAt.IsZero() {
+		return fmt.Errorf("%w: coin, different exchanges and detection time are required", ErrInvalidDeal)
 	}
 
-	dealsCount, err := s.repo.GetDealsCount(ctx)
-	if err != nil {
-		return DealStats{}, err
+	for _, amount := range []float64{deal.BuyAmountUSDT, deal.SellAmountUSDT, deal.ProfitUSDT} {
+		if amount <= 0 || math.IsNaN(amount) || math.IsInf(amount, 0) {
+			return fmt.Errorf("%w: amounts must be finite and positive", ErrInvalidDeal)
+		}
 	}
 
-	recentDeals, err := s.repo.GetRecentDeals(ctx, recentDealsLimit)
-	if err != nil {
-		return DealStats{}, err
-	}
-	if recentDeals == nil {
-		recentDeals = make([]RecentDeal, 0)
+	difference := deal.SellAmountUSDT - deal.BuyAmountUSDT
+	if difference <= 0 || math.Abs(difference-deal.ProfitUSDT) > 1e-9*math.Max(1, math.Abs(difference)) {
+		return fmt.Errorf("%w: profit must equal sale minus purchase", ErrInvalidDeal)
 	}
 
-	return DealStats{
-		CurrentBalance: math.Round(balance*100) / 100,
-		TotalEarned:    math.Round((balance-s.initialBalance)*100) / 100,
-		DealsCount:     dealsCount,
-		RecentDeals:    recentDeals,
-	}, nil
+	return s.repo.SaveDeal(ctx, deal)
 }

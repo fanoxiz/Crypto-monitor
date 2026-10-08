@@ -13,13 +13,15 @@ import (
 type AnalyzerService struct {
 	fees        map[string]float64
 	store       QuoteStore
+	sender      DealSender
 	maxQuoteAge time.Duration
 }
 
-func NewAnalyzerService(fees map[string]float64, store QuoteStore, maxQuoteAge time.Duration) *AnalyzerService {
+func NewAnalyzerService(fees map[string]float64, store QuoteStore, sender DealSender, maxQuoteAge time.Duration) *AnalyzerService {
 	return &AnalyzerService{
 		fees:        fees,
 		store:       store,
+		sender:      sender,
 		maxQuoteAge: maxQuoteAge,
 	}
 }
@@ -43,33 +45,31 @@ func (a *AnalyzerService) Run(ctx context.Context) {
 			continue
 		}
 
-		for _, opportunity := range a.FindOpportunities(quotes, time.Now().UTC()) {
-			log.Printf("level=DEBUG component=core event=opportunity coin=%s buy_exchange=%s sell_exchange=%s quantity=%.8g buy_usdt=%.8g cost_with_fee_usdt=%.8g proceeds_after_fee_usdt=%.8g difference_usdt=%.8g spread_percent=%.8g",
-				opportunity.Coin,
-				opportunity.BuyExchange,
-				opportunity.SellExchange,
-				opportunity.Quantity,
-				opportunity.BuyAmountUSDT,
-				opportunity.BuyCostWithFeeUSDT,
-				opportunity.SellProceedsAfterFeeUSDT,
-				opportunity.DifferenceUSDT,
-				opportunity.SpreadPercent,
+		for _, deal := range a.FindDeals(quotes, time.Now().UTC()) {
+			if ctx.Err() != nil {
+				return
+			}
+
+			if err := a.sender.Send(ctx, deal); err != nil {
+				if ctx.Err() != nil {
+					return
+				}
+
+				log.Printf("level=ERROR component=core event=deal_send_failed coin=%s err=%q", deal.Coin, err)
+				continue
+			}
+
+			log.Printf("level=DEBUG component=core event=deal_sent coin=%s buy_exchange=%s sell_exchange=%s profit_usdt=%.8g",
+				deal.Coin,
+				deal.BuyExchange,
+				deal.SellExchange,
+				deal.ProfitUSDT,
 			)
 		}
 	}
 }
 
-type marketQuote struct {
-	exchange     string
-	askPrice     float64
-	bidPrice     float64
-	askSize      float64
-	bidSize      float64
-	buyCost      float64
-	sellProceeds float64
-}
-
-func (a *AnalyzerService) FindOpportunities(quotes []contracts.Quote, now time.Time) []Opportunity {
+func (a *AnalyzerService) FindDeals(quotes []contracts.Quote, now time.Time) []contracts.ProfitDealInfo {
 	prices := make(map[string][]marketQuote)
 
 	for _, quote := range quotes {
@@ -79,59 +79,50 @@ func (a *AnalyzerService) FindOpportunities(quotes []contracts.Quote, now time.T
 		}
 	}
 
-	var opportunities []Opportunity
+	var deals []contracts.ProfitDealInfo
 
 	for coin, exchanges := range prices {
-		var best Opportunity
+		var best contracts.ProfitDealInfo
+		var bestQuantity float64
 
 		for _, buy := range exchanges {
 			for _, sell := range exchanges {
-				if buy.exchange == sell.exchange {
-					continue
-				}
-
-				spread := sell.sellProceeds - buy.buyCost
-				if spread <= 0 {
+				if buy.exchange == sell.exchange || sell.sellProceeds <= buy.buyCost {
 					continue
 				}
 
 				quantity := math.Min(buy.askSize, sell.bidSize)
-				if quantity <= best.Quantity {
+				if quantity <= bestQuantity {
 					continue
 				}
 
-				candidate := Opportunity{
-					Coin:                     coin,
-					BuyExchange:              buy.exchange,
-					SellExchange:             sell.exchange,
-					AskPrice:                 buy.askPrice,
-					BidPrice:                 sell.bidPrice,
-					Quantity:                 quantity,
-					BuyAmountUSDT:            quantity * buy.askPrice,
-					BuyCostWithFeeUSDT:       quantity * buy.buyCost,
-					SellProceedsAfterFeeUSDT: quantity * sell.sellProceeds,
-					DifferenceUSDT:           quantity * spread,
-					SpreadPercent:            spread / buy.buyCost * 100,
-				}
+				buyAmount := quantity * buy.buyCost
+				sellAmount := quantity * sell.sellProceeds
+				profit := sellAmount - buyAmount
 
-				if !positiveFinite(candidate.BuyAmountUSDT) ||
-					 !positiveFinite(candidate.BuyCostWithFeeUSDT) ||
-					 !positiveFinite(candidate.SellProceedsAfterFeeUSDT) ||
-					 !positiveFinite(candidate.DifferenceUSDT) ||
-					 !positiveFinite(candidate.SpreadPercent) {
+				if !positiveFinite(buyAmount) || !positiveFinite(sellAmount) || !positiveFinite(profit) {
 					continue
 				}
 
-				best = candidate
+				best = contracts.ProfitDealInfo{
+					Coin:           coin,
+					BuyExchange:    buy.exchange,
+					SellExchange:   sell.exchange,
+					BuyAmountUSDT:  buyAmount,
+					SellAmountUSDT: sellAmount,
+					ProfitUSDT:     profit,
+					DetectedAt:     now,
+				}
+				bestQuantity = quantity
 			}
 		}
 
-		if best.Quantity > 0 {
-			opportunities = append(opportunities, best)
+		if bestQuantity > 0 {
+			deals = append(deals, best)
 		}
 	}
 
-	return opportunities
+	return deals
 }
 
 func (a *AnalyzerService) parseQuote(quote contracts.Quote, now time.Time) (marketQuote, bool) {
@@ -168,8 +159,6 @@ func (a *AnalyzerService) parseQuote(quote contracts.Quote, now time.Time) (mark
 
 	price := marketQuote{
 		exchange:     quote.Exchange,
-		askPrice:     values[1],
-		bidPrice:     values[0],
 		askSize:      values[3],
 		bidSize:      values[2],
 		buyCost:      values[1] * (1 + fee),

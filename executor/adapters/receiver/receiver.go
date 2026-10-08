@@ -2,6 +2,7 @@ package receiver
 
 import (
 	"context"
+	"errors"
 	"log"
 	"net"
 
@@ -9,9 +10,10 @@ import (
 	"github.com/fanoxiz/crypto-monitor/contracts/grpcpb"
 	"github.com/fanoxiz/crypto-monitor/executor/core"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/reflection"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type GRPCReceiver struct {
@@ -19,69 +21,68 @@ type GRPCReceiver struct {
 	executor core.Executor
 }
 
-func NewGRPCReceiver(ex core.Executor) *GRPCReceiver {
+func NewGRPCReceiver(executor core.Executor) *GRPCReceiver {
 	return &GRPCReceiver{
-		executor: ex,
+		executor: executor,
 	}
 }
 
-func (rec *GRPCReceiver) Start(port string) error {
-	lis, err := net.Listen("tcp", ":"+port)
+func (r *GRPCReceiver) Start(ctx context.Context, port string) error {
+	listener, err := net.Listen("tcp", ":"+port)
 	if err != nil {
 		return err
 	}
+	defer listener.Close()
 
-	srv := grpc.NewServer()
-	grpcpb.RegisterExecutorServiceServer(srv, rec)
-	reflection.Register(srv)
+	server := grpc.NewServer()
+	grpcpb.RegisterExecutorServiceServer(server, r)
+	reflection.Register(server)
+
+	stop := context.AfterFunc(ctx, server.GracefulStop)
+	defer stop()
 
 	log.Printf("level=INFO component=receiver event=server_started port=%s", port)
-	return srv.Serve(lis)
-}
 
-func (rec *GRPCReceiver) ProcessDeal(ctx context.Context, msg *grpcpb.ProfitDealInfo) (*emptypb.Empty, error) {
-	deal := contracts.ProfitDealInfo{
-		CoinName:      fromProtoCoin(msg.GetCoinName()),
-		AskExchange:   fromProtoExchange(msg.GetAskExchange()),
-		BidExchange:   fromProtoExchange(msg.GetBidExchange()),
-		AskPrice:      msg.GetAskPrice(),
-		BidPrice:      msg.GetBidPrice(),
-		ProfitAbs:     msg.GetProfitAbs(),
-		ProfitPercent: msg.GetProfitPercent(),
-		Timestamp:     msg.GetTimestamp().AsTime(),
+	err = server.Serve(listener)
+	if errors.Is(err, grpc.ErrServerStopped) {
+		return nil
 	}
 
-	if err := rec.executor.ProcessDeal(ctx, deal); err != nil {
-		log.Printf("level=ERROR component=receiver event=process_deal_failed err=%q", err)
-		return nil, err
+	return err
+}
+
+func (r *GRPCReceiver) ProcessDeal(ctx context.Context, msg *grpcpb.ProfitDealInfo) (*emptypb.Empty, error) {
+	if msg == nil || msg.GetDetectedAt() == nil {
+		return nil, status.Error(codes.InvalidArgument, "detection time is required")
+	}
+
+	if err := msg.GetDetectedAt().CheckValid(); err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid detection time")
+	}
+
+	deal := contracts.ProfitDealInfo{
+		Coin:           msg.GetCoin(),
+		BuyExchange:    msg.GetBuyExchange(),
+		SellExchange:   msg.GetSellExchange(),
+		BuyAmountUSDT:  msg.GetBuyAmountUsdt(),
+		SellAmountUSDT: msg.GetSellAmountUsdt(),
+		ProfitUSDT:     msg.GetProfitUsdt(),
+		DetectedAt:     msg.GetDetectedAt().AsTime(),
+	}
+
+	if err := r.executor.ProcessDeal(ctx, deal); err != nil {
+		if errors.Is(err, core.ErrInvalidDeal) {
+			return nil, status.Error(codes.InvalidArgument, err.Error())
+		}
+
+		if ctx.Err() != nil {
+			return nil, status.FromContextError(ctx.Err()).Err()
+		}
+
+		log.Printf("level=ERROR component=receiver event=deal_save_failed err=%q", err)
+
+		return nil, status.Error(codes.Internal, "failed to save deal")
 	}
 
 	return &emptypb.Empty{}, nil
-}
-
-func (rec *GRPCReceiver) GetStats(ctx context.Context, _ *emptypb.Empty) (*grpcpb.DealStats, error) {
-	stats, err := rec.executor.GetStats(ctx)
-	if err != nil {
-		log.Printf("level=ERROR component=receiver event=stats_failed err=%q", err)
-		return nil, err
-	}
-
-	recent := make([]*grpcpb.RecentDeal, len(stats.RecentDeals))
-	for i, d := range stats.RecentDeals {
-		recent[i] = &grpcpb.RecentDeal{
-			Coin:          d.Coin,
-			BuyExchange:   d.BuyExchange,
-			SellExchange:  d.SellExchange,
-			ProfitPercent: d.ProfitPercent,
-			EarnedUsd:     d.EarnedUSD,
-			CreatedAt:     timestamppb.New(d.CreatedAt),
-		}
-	}
-
-	return &grpcpb.DealStats{
-		CurrentBalance: stats.CurrentBalance,
-		TotalEarned:    stats.TotalEarned,
-		DealsCount:     stats.DealsCount,
-		RecentDeals:    recent,
-	}, nil
 }

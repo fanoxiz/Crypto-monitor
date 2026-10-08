@@ -4,6 +4,8 @@ import (
 	"context"
 	"log"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/fanoxiz/crypto-monitor/executor/adapters/db"
 	"github.com/fanoxiz/crypto-monitor/executor/adapters/receiver"
@@ -15,26 +17,28 @@ func main() {
 	log.SetPrefix("service=executor ")
 	log.SetFlags(log.LstdFlags | log.LUTC)
 
+	if err := run(); err != nil {
+		log.Fatalf("level=ERROR component=main event=startup_failed err=%q", err)
+	}
+}
+
+func run() error {
 	cfg, err := config.Load("executor/config.yaml")
 	if err != nil {
-		log.Fatalf("level=ERROR component=main event=config_load_failed err=%q", err)
+		return err
 	}
 
-	dbUrl := os.Getenv("DATABASE_URL")
-	if dbUrl == "" {
-		dbUrl = "postgres://crypto_user:secret_password@localhost:5433/crypto_db"
-	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
-	repo, err := db.NewPostgresRepo(context.Background(), dbUrl, cfg.InitialBalance)
+	repo, err := db.NewPostgresRepo(ctx, cfg.DatabaseURL)
 	if err != nil {
-		log.Fatalf("level=ERROR component=main event=db_connect_failed err=%q", err)
+		return err
 	}
+	defer repo.Close()
 
-	executorService := core.NewExecutorService(repo, cfg.TradeSize, cfg.InitialBalance)
-	grpcServer := receiver.NewGRPCReceiver(executorService)
+	service := core.NewExecutorService(repo)
+	server := receiver.NewGRPCReceiver(service)
 
-	log.Printf("level=INFO component=main event=service_started port=%s", cfg.GRPCPort)
-	if err := grpcServer.Start(cfg.GRPCPort); err != nil {
-		log.Fatalf("level=ERROR component=main event=server_start_failed err=%q", err)
-	}
+	return server.Start(ctx, cfg.GRPCPort)
 }
