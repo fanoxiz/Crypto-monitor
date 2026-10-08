@@ -3,52 +3,47 @@ package main
 import (
 	"context"
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/fanoxiz/crypto-monitor/analyzer/adapters/cache"
-	"github.com/fanoxiz/crypto-monitor/analyzer/adapters/receiver"
-	"github.com/fanoxiz/crypto-monitor/analyzer/adapters/sender"
 	"github.com/fanoxiz/crypto-monitor/analyzer/config"
 	"github.com/fanoxiz/crypto-monitor/analyzer/core"
 	"github.com/redis/go-redis/v9"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 func main() {
 	log.SetPrefix("service=analyzer ")
+	log.SetFlags(log.LstdFlags | log.LUTC)
 
+	if err := run(); err != nil {
+		log.Fatalf("level=ERROR component=main event=startup_failed err=%q", err)
+	}
+}
+
+func run() error {
 	cfg, err := config.Load("analyzer/config.yaml")
 	if err != nil {
-		log.Fatalf("level=ERROR component=main event=config_load_failed err=\"%v\"", err)
+		return err
 	}
 
-	grpcConn, err := grpc.NewClient(cfg.ExecutorGRPCAddr,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-	)
-	if err != nil {
-		log.Fatalf("level=ERROR component=main event=grpc_dial_failed err=\"%v\"", err)
-	}
-	defer grpcConn.Close()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
-	senderService := sender.NewSenderService(grpcConn)
-
-	redisClient := redis.NewClient(&redis.Options{
-		Addr:     cfg.RedisAddr,
-		Password: cfg.RedisPassword,
-		DB:       cfg.RedisDB,
+	client := redis.NewClient(&redis.Options{
+		Addr: cfg.RedisAddr,
 	})
-	defer redisClient.Close()
+	defer client.Close()
 
-	if err := redisClient.Ping(context.Background()).Err(); err != nil {
-		log.Fatalf("level=ERROR component=main event=redis_connect_failed err=\"%v\"", err)
+	if err := client.Ping(ctx).Err(); err != nil {
+		return err
 	}
 
-	priceStore := cache.NewRedisPriceStore(redisClient, cfg.RedisKeyPrefix, cfg.PriceTTL)
-	analyzerService := core.NewAnalyzerService(cfg.Fees, senderService, priceStore)
-	grpcReceiver := receiver.NewGRPCReceiver(analyzerService)
+	store := cache.NewRedisQuoteStore(client, cfg.TrackedCoins, cfg.Exchanges)
+	service := core.NewAnalyzerService(cfg.Fees, store, cfg.MaxQuoteAge)
 
-	log.Printf("level=INFO component=main event=service_started port=%s", cfg.GRPCPort)
-	if err := grpcReceiver.Start(cfg.GRPCPort); err != nil {
-		log.Fatalf("level=ERROR component=main event=server_start_failed err=\"%v\"", err)
-	}
+	service.Run(ctx)
+
+	return nil
 }

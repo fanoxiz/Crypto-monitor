@@ -48,22 +48,11 @@ services:
     build:
       context: .
       dockerfile: analyzer/Dockerfile
-    ports:
-      - "8081:8081"
     environment:
-      - EXECUTOR_GRPC_ADDR=executor:8082
       - REDIS_ADDR=redis:6379
     depends_on:
-      executor:
-        condition: service_healthy
       redis:
         condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "nc -z localhost 8081 || exit 1"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-      start_period: 5s
     restart: unless-stopped
 
   fetcher:

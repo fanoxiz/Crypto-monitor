@@ -3,86 +3,61 @@ package cache
 import (
 	"context"
 	"encoding/json"
-	"fmt"
-	"time"
 
 	"github.com/fanoxiz/crypto-monitor/contracts"
 	"github.com/redis/go-redis/v9"
 )
 
-type priceEntry struct {
-	Price     contracts.BidAsk `json:"price"`
-	UpdatedAt time.Time        `json:"updated_at"`
+type RedisQuoteStore struct {
+	client *redis.Client
+	keys   []string
 }
 
-type RedisPriceStore struct {
-	client    *redis.Client
-	keyPrefix string
-	priceTTL  time.Duration
-}
+func NewRedisQuoteStore(client *redis.Client, coins, exchanges []string) *RedisQuoteStore {
+	keys := make([]string, 0, len(coins)*len(exchanges))
 
-func NewRedisPriceStore(client *redis.Client, keyPrefix string, priceTTL time.Duration) *RedisPriceStore {
-	return &RedisPriceStore{
-		client:    client,
-		keyPrefix: keyPrefix,
-		priceTTL:  priceTTL,
+	for _, coin := range coins {
+		for _, exchange := range exchanges {
+			keys = append(keys, quoteKey(coin, exchange))
+		}
+	}
+
+	return &RedisQuoteStore{
+		client: client,
+		keys:   keys,
 	}
 }
 
-func (s *RedisPriceStore) SetPrice(coin, exchange string, price contracts.BidAsk) error {
-	entry := priceEntry{
-		Price:     price,
-		UpdatedAt: time.Now().UTC(),
-	}
-
-	data, err := json.Marshal(entry)
+func (s *RedisQuoteStore) GetQuotes(ctx context.Context) ([]contracts.Quote, error) {
+	values, err := s.client.MGet(ctx, s.keys...).Result()
 	if err != nil {
-		return fmt.Errorf("redis set price: marshal: %w", err)
+		return nil, err
 	}
 
-	if err := s.client.HSet(context.Background(), s.coinKey(coin), exchange, data).Err(); err != nil {
-		return fmt.Errorf("redis set price: hset: %w", err)
-	}
+	quotes := make([]contracts.Quote, 0, len(values))
 
-	return nil
-}
-
-func (s *RedisPriceStore) GetPrices(coin string) (map[string]contracts.BidAsk, error) {
-	rows, err := s.client.HGetAll(context.Background(), s.coinKey(coin)).Result()
-	if err != nil {
-		return nil, fmt.Errorf("redis get prices: hgetall: %w", err)
-	}
-
-	now := time.Now().UTC()
-	prices := make(map[string]contracts.BidAsk, len(rows))
-	var staleFields []string
-
-	for exchange, raw := range rows {
-		var entry priceEntry
-		if err := json.Unmarshal([]byte(raw), &entry); err != nil {
-			staleFields = append(staleFields, exchange)
+	for i, value := range values {
+		raw, exists := value.(string)
+		if !exists {
 			continue
 		}
 
-		if s.priceTTL > 0 && now.Sub(entry.UpdatedAt) > s.priceTTL {
-			staleFields = append(staleFields, exchange)
+		var quote contracts.Quote
+
+		if err := json.Unmarshal([]byte(raw), &quote); err != nil {
 			continue
 		}
 
-		prices[exchange] = entry.Price
+		if quoteKey(quote.Coin, quote.Exchange) != s.keys[i] {
+			continue
+		}
+
+		quotes = append(quotes, quote)
 	}
 
-	if len(staleFields) > 0 {
-		_ = s.client.HDel(context.Background(), s.coinKey(coin), staleFields...).Err()
-	}
-
-	return prices, nil
+	return quotes, nil
 }
 
-func (s *RedisPriceStore) coinKey(coin string) string {
-	if s.keyPrefix == "" {
-		return "analyzer:prices:" + coin
-	}
-
-	return s.keyPrefix + coin
+func quoteKey(coin, exchange string) string {
+	return "fetcher:quotes:spot:" + coin + "-USDT:" + exchange
 }

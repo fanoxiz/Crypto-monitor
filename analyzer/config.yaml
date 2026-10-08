@@ -1,31 +1,20 @@
-grpc_port: "8081"
-executor_grpc_addr: localhost:8082
-redis_addr: "localhost:6379"
-redis_password: ""
-redis_db: 0
-redis_key_prefix: "analyzer:prices:"
-price_ttl: 2s
+tracked_coins:
+  - BTC
+  - ETH
+  - XAUT
 
-# # testing fees
-# fees:
-#   Binance: 0.0
-#   Bybit: 0.0
-#   Bitget: 0.0
-#   OKX: 0.0
-#   Coinbase: 0.0
+exchanges:
+  - Binance
+  - Bybit
+  - Bitget
+  - OKX
 
-# real vip fees:
+redis_addr: localhost:6379
+max_quote_age: 500ms
+
 fees:
-  Binance: 0.0005 # 0.05%
-  Bybit: 0.0004 # 0.04%
-  Bitget: 0.0008 # 0.08%
-  OKX: 0.0005 # 0.05%
-  Coinbase: 0.003 # 0.30%
-
-# # real basic fees:
-# fees:
-#   Binance: 0.001 # 0.1%
-#   Bybit: 0.001 # 0.1%
-#   Bitget: 0.001 # 0.1%
-#   OKX: 0.001 # 0.1%
-#   Coinbase: 0.006 # 0.6%
+  Binance: 0.0005
+  Bybit: 0.0004
+  Bitget: 0.0008
+  OKX: 0.0005
+  Coinbase: 0.003
