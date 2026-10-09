@@ -12,5 +12,5 @@ type Exchange interface {
 }
 
 type QuoteStore interface {
-	Save(ctx context.Context, quote contracts.Quote) error
+	SaveBatch(ctx context.Context, quotes []contracts.Quote) error
 }

@@ -3,7 +3,9 @@ package core
 import (
 	"context"
 	"log"
+	"math/rand/v2"
 	"sync"
+	"time"
 
 	"github.com/fanoxiz/crypto-monitor/contracts"
 )
@@ -22,15 +24,109 @@ func NewFetcherService(exchanges []Exchange, store QuoteStore) *FetcherService {
 
 func (s *FetcherService) Run(ctx context.Context, coins []string) {
 	var workers sync.WaitGroup
+	var mutex sync.Mutex
+
+	pending := make(map[string]contracts.Quote)
+	updates := make(chan struct{}, 1)
+
+	workers.Go(func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-updates:
+			}
+
+			mutex.Lock()
+			quotes := make([]contracts.Quote, 0, len(pending))
+
+			for _, quote := range pending {
+				quotes = append(quotes, quote)
+			}
+
+			clear(pending)
+			mutex.Unlock()
+
+			if len(quotes) == 0 {
+				continue
+			}
+
+			if err := s.store.SaveBatch(ctx, quotes); err != nil {
+				if ctx.Err() != nil {
+					return
+				}
+
+				log.Printf("level=ERROR component=core event=redis_write_failed err=%q", err)
+
+				mutex.Lock()
+
+				for _, quote := range quotes {
+					key := contracts.QuoteKey(quote.Coin, quote.Exchange)
+					current, exists := pending[key]
+					if !exists || current.ReceivedAt.Before(quote.ReceivedAt) {
+						pending[key] = quote
+					}
+				}
+
+				mutex.Unlock()
+
+				select {
+				case updates <- struct{}{}:
+				default:
+				}
+
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(100 * time.Millisecond):
+				}
+			}
+		}
+	})
 
 	for _, exchange := range s.exchanges {
 		workers.Go(func() {
-			err := exchange.Stream(ctx, coins, func(quote contracts.Quote) error {
-				return s.store.Save(ctx, quote)
-			})
+			delay := time.Second
 
-			if err != nil && ctx.Err() == nil {
-				log.Printf("level=ERROR component=core event=stream_failed exchange=%s err=%q", exchange.Name(), err)
+			for ctx.Err() == nil {
+				received := false
+
+				log.Printf("level=INFO component=core event=stream_starting exchange=%s", exchange.Name())
+
+				err := exchange.Stream(ctx, coins, func(quote contracts.Quote) error {
+					received = true
+
+					mutex.Lock()
+					pending[contracts.QuoteKey(quote.Coin, quote.Exchange)] = quote
+					mutex.Unlock()
+
+					select {
+					case updates <- struct{}{}:
+					default:
+					}
+
+					return ctx.Err()
+				})
+
+				if ctx.Err() != nil {
+					return
+				}
+
+				if received {
+					delay = time.Second
+				}
+
+				retryAfter := delay/2 + time.Duration(rand.Int64N(int64(delay/2)))
+
+				log.Printf("level=ERROR component=core event=stream_failed exchange=%s retry_after=%s err=%q", exchange.Name(), retryAfter, err)
+
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(retryAfter):
+				}
+
+				delay = min(2*delay, 10*time.Second)
 			}
 		})
 	}

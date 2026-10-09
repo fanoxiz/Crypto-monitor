@@ -52,6 +52,8 @@ func stream(ctx context.Context, endpoint string, request any, heartbeat string,
 			return err
 		}
 
+		receivedAt := time.Now().UTC()
+
 		if string(data) == "pong" {
 			continue
 		}
@@ -65,7 +67,7 @@ func stream(ctx context.Context, endpoint string, request any, heartbeat string,
 			continue
 		}
 
-		quote.ReceivedAt = time.Now().UTC()
+		quote.ReceivedAt = receivedAt
 
 		if err := save(quote); err != nil {
 			return err

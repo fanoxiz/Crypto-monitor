@@ -21,13 +21,25 @@ func NewRedisQuoteStore(client *redis.Client, ttl time.Duration) *RedisQuoteStor
 	}
 }
 
-func (s *RedisQuoteStore) Save(ctx context.Context, quote contracts.Quote) error {
-	data, err := json.Marshal(quote)
-	if err != nil {
-		return err
-	}
+func (s *RedisQuoteStore) SaveBatch(ctx context.Context, quotes []contracts.Quote) error {
+	_, err := s.client.Pipelined(ctx, func(pipe redis.Pipeliner) error {
+		for _, quote := range quotes {
+			ttl := s.ttl - time.Since(quote.ReceivedAt)
+			if ttl <= 0 || ttl > s.ttl {
+				continue
+			}
 
-	key := "fetcher:quotes:spot:" + quote.Coin + "-USDT:" + quote.Exchange
+			data, err := json.Marshal(quote)
+			if err != nil {
+				return err
+			}
 
-	return s.client.Set(ctx, key, data, s.ttl).Err()
+			pipe.Set(ctx, contracts.QuoteKey(quote.Coin, quote.Exchange), data, ttl)
+			pipe.Publish(ctx, contracts.QuotesChannel, data)
+		}
+
+		return nil
+	})
+
+	return err
 }

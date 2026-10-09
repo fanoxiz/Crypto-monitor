@@ -7,7 +7,7 @@ import (
 )
 
 type QuoteStore interface {
-	GetQuotes(ctx context.Context) ([]contracts.Quote, error)
+	Stream(ctx context.Context, handle func(contracts.Quote)) error
 }
 
 type DealSender interface {

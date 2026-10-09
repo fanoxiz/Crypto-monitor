@@ -2,6 +2,12 @@ package contracts
 
 import "time"
 
+const QuotesChannel = "fetcher:quotes:updates"
+
+func QuoteKey(coin, exchange string) string {
+	return "fetcher:quotes:spot:" + coin + "-USDT:" + exchange
+}
+
 type Quote struct {
 	Coin     string `json:"coin"`
 	Exchange string `json:"exchange"`
