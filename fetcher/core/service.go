@@ -84,52 +84,60 @@ func (s *FetcherService) Run(ctx context.Context, coins []string) {
 		}
 	})
 
+	onQuote := func(quote contracts.Quote) error {
+		mutex.Lock()
+		pending[contracts.QuoteKey(quote.Coin, quote.Exchange)] = quote
+		mutex.Unlock()
+
+		select {
+		case updates <- struct{}{}:
+		default:
+		}
+
+		return ctx.Err()
+	}
+
 	for _, exchange := range s.exchanges {
 		workers.Go(func() {
-			delay := time.Second
-
-			for ctx.Err() == nil {
-				received := false
-
-				log.Printf("level=INFO component=core event=stream_starting exchange=%s", exchange.Name())
-
-				err := exchange.Stream(ctx, coins, func(quote contracts.Quote) error {
-					received = true
-
-					mutex.Lock()
-					pending[contracts.QuoteKey(quote.Coin, quote.Exchange)] = quote
-					mutex.Unlock()
-
-					select {
-					case updates <- struct{}{}:
-					default:
-					}
-
-					return ctx.Err()
-				})
-
-				if ctx.Err() != nil {
-					return
-				}
-
-				if received {
-					delay = time.Second
-				}
-
-				retryAfter := delay/2 + time.Duration(rand.Int64N(int64(delay/2)))
-
-				log.Printf("level=ERROR component=core event=stream_failed exchange=%s retry_after=%s err=%q", exchange.Name(), retryAfter, err)
-
-				select {
-				case <-ctx.Done():
-					return
-				case <-time.After(retryAfter):
-				}
-
-				delay = min(2*delay, 10*time.Second)
-			}
+			s.runExchange(ctx, exchange, coins, onQuote)
 		})
 	}
 
 	workers.Wait()
+}
+
+func (s *FetcherService) runExchange(ctx context.Context, exchange Exchange, coins []string, onQuote func(contracts.Quote) error) {
+	delay := time.Second
+
+	for ctx.Err() == nil {
+		received := false
+
+		log.Printf("level=INFO component=core event=stream_starting exchange=%s", exchange.Name())
+
+		err := exchange.Stream(ctx, coins, func(quote contracts.Quote) error {
+			received = true
+
+			return onQuote(quote)
+		})
+
+		if ctx.Err() != nil {
+			return
+		}
+
+		if received {
+			delay = time.Second
+		}
+
+		retryAfter := delay/2 + time.Duration(rand.Int64N(int64(delay/2)))
+
+		log.Printf("level=ERROR component=core event=stream_failed exchange=%s retry_after=%s err=%q", exchange.Name(), retryAfter, err)
+
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(retryAfter):
+		}
+
+		delay = min(2*delay, 10*time.Second)
+	}
 }
