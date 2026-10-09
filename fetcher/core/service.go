@@ -24,75 +24,15 @@ func NewFetcherService(exchanges []Exchange, store QuoteStore) *FetcherService {
 
 func (s *FetcherService) Run(ctx context.Context, coins []string) {
 	var workers sync.WaitGroup
-	var mutex sync.Mutex
 
-	pending := make(map[string]contracts.Quote)
-	updates := make(chan struct{}, 1)
+	buffer := newQuoteBuffer()
 
 	workers.Go(func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-updates:
-			}
-
-			mutex.Lock()
-			quotes := make([]contracts.Quote, 0, len(pending))
-
-			for _, quote := range pending {
-				quotes = append(quotes, quote)
-			}
-
-			clear(pending)
-			mutex.Unlock()
-
-			if len(quotes) == 0 {
-				continue
-			}
-
-			if err := s.store.SaveBatch(ctx, quotes); err != nil {
-				if ctx.Err() != nil {
-					return
-				}
-
-				log.Printf("level=ERROR component=core event=redis_write_failed err=%q", err)
-
-				mutex.Lock()
-
-				for _, quote := range quotes {
-					key := contracts.QuoteKey(quote.Coin, quote.Exchange)
-					current, exists := pending[key]
-					if !exists || current.ReceivedAt.Before(quote.ReceivedAt) {
-						pending[key] = quote
-					}
-				}
-
-				mutex.Unlock()
-
-				select {
-				case updates <- struct{}{}:
-				default:
-				}
-
-				select {
-				case <-ctx.Done():
-					return
-				case <-time.After(100 * time.Millisecond):
-				}
-			}
-		}
+		s.runWriter(ctx, buffer)
 	})
 
 	onQuote := func(quote contracts.Quote) error {
-		mutex.Lock()
-		pending[contracts.QuoteKey(quote.Coin, quote.Exchange)] = quote
-		mutex.Unlock()
-
-		select {
-		case updates <- struct{}{}:
-		default:
-		}
+		buffer.put(quote)
 
 		return ctx.Err()
 	}
@@ -104,6 +44,37 @@ func (s *FetcherService) Run(ctx context.Context, coins []string) {
 	}
 
 	workers.Wait()
+}
+
+func (s *FetcherService) runWriter(ctx context.Context, buffer *quoteBuffer) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-buffer.updates:
+		}
+
+		quotes := buffer.take()
+		if len(quotes) == 0 {
+			continue
+		}
+
+		if err := s.store.SaveBatch(ctx, quotes); err != nil {
+			if ctx.Err() != nil {
+				return
+			}
+
+			log.Printf("level=ERROR component=core event=redis_write_failed err=%q", err)
+
+			buffer.restore(quotes)
+
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(100 * time.Millisecond):
+			}
+		}
+	}
 }
 
 func (s *FetcherService) runExchange(ctx context.Context, exchange Exchange, coins []string, onQuote func(contracts.Quote) error) {
