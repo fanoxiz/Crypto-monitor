@@ -13,9 +13,20 @@ redis_addr: localhost:6379
 executor_grpc_addr: localhost:8082
 max_quote_age: 500ms
 
+# test fees
+
 fees:
-  Binance: 0.0005
-  Bybit: 0.0004
-  Bitget: 0.0008
-  OKX: 0.0005
-  Coinbase: 0.003
+  Binance: 0.0001
+  Bybit: 0.0001
+  Bitget: 0.0001
+  OKX: 0.0001
+  Coinbase: 0.0001
+
+# # beginner fees
+
+# fees:
+#   Binance: 0.001
+#   Bybit: 0.001
+#   Bitget: 0.001
+#   OKX: 0.001
+#   Coinbase: 0.009

@@ -3,6 +3,8 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"log"
 	"strings"
 
 	"github.com/fanoxiz/crypto-monitor/contracts"
@@ -37,7 +39,10 @@ func (a BitgetAdapter) Stream(ctx context.Context, coins []string, save func(con
 
 func decodeBitget(raw []byte) (contracts.Quote, error) {
 	var data struct {
-		Arg struct {
+		Event   string `json:"event"`
+		Code    string `json:"code"`
+		Message string `json:"msg"`
+		Arg     struct {
 			Symbol string `json:"symbol"`
 		} `json:"arg"`
 		Data []struct {
@@ -48,6 +53,16 @@ func decodeBitget(raw []byte) (contracts.Quote, error) {
 
 	if err := json.Unmarshal(raw, &data); err != nil {
 		return contracts.Quote{}, err
+	}
+
+	if data.Event == "error" {
+		return contracts.Quote{}, fmt.Errorf("Bitget subscription failed: symbol=%s code=%s message=%s", data.Arg.Symbol, data.Code, data.Message)
+	}
+
+	if data.Event == "subscribe" {
+		log.Printf("level=INFO component=api event=subscription_confirmed exchange=Bitget symbol=%s", data.Arg.Symbol)
+
+		return contracts.Quote{}, nil
 	}
 
 	if len(data.Data) == 0 {

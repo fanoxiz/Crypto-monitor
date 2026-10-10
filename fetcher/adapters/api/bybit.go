@@ -3,6 +3,8 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"log"
 	"strings"
 
 	"github.com/fanoxiz/crypto-monitor/contracts"
@@ -33,7 +35,11 @@ func (a BybitAdapter) Stream(ctx context.Context, coins []string, save func(cont
 
 func decodeBybit(raw []byte) (contracts.Quote, error) {
 	var data struct {
-		Data struct {
+		Success   *bool  `json:"success"`
+		Operation string `json:"op"`
+		Message   string `json:"ret_msg"`
+		RequestID string `json:"req_id"`
+		Data      struct {
 			Symbol string     `json:"s"`
 			Bids   [][]string `json:"b"`
 			Asks   [][]string `json:"a"`
@@ -42,6 +48,16 @@ func decodeBybit(raw []byte) (contracts.Quote, error) {
 
 	if err := json.Unmarshal(raw, &data); err != nil {
 		return contracts.Quote{}, err
+	}
+
+	if data.Success != nil && !*data.Success {
+		return contracts.Quote{}, fmt.Errorf("Bybit request failed: operation=%s request_id=%s message=%s", data.Operation, data.RequestID, data.Message)
+	}
+
+	if data.Operation == "subscribe" && data.Success != nil {
+		log.Printf("level=INFO component=api event=subscription_confirmed exchange=Bybit request_id=%q", data.RequestID)
+
+		return contracts.Quote{}, nil
 	}
 
 	return quoteFromBook(

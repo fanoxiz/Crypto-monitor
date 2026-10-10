@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/fanoxiz/crypto-monitor/contracts"
@@ -15,14 +16,32 @@ func stream(ctx context.Context, endpoint string, request any, heartbeat string,
 	}
 	defer conn.Close()
 
+	if err := conn.SetWriteDeadline(time.Now().Add(500 * time.Millisecond)); err != nil {
+		return err
+	}
+
 	if err := conn.WriteJSON(request); err != nil {
 		return err
 	}
 
+	quoteDeadline := time.Now().Add(500 * time.Millisecond)
+
+	if err := conn.SetReadDeadline(quoteDeadline); err != nil {
+		return err
+	}
+
 	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
+	heartbeatDone := make(chan struct{})
+
+	defer func() {
+		cancel()
+		conn.Close()
+		<-heartbeatDone
+	}()
 
 	go func() {
+		defer close(heartbeatDone)
+
 		ticker := time.NewTicker(20 * time.Second)
 		defer ticker.Stop()
 
@@ -54,6 +73,10 @@ func stream(ctx context.Context, endpoint string, request any, heartbeat string,
 
 		receivedAt := time.Now().UTC()
 
+		if receivedAt.After(quoteDeadline) {
+			return fmt.Errorf("no quote received within 500ms")
+		}
+
 		if string(data) == "pong" {
 			continue
 		}
@@ -68,6 +91,12 @@ func stream(ctx context.Context, endpoint string, request any, heartbeat string,
 		}
 
 		quote.ReceivedAt = receivedAt
+
+		quoteDeadline = receivedAt.Add(500 * time.Millisecond)
+
+		if err := conn.SetReadDeadline(quoteDeadline); err != nil {
+			return err
+		}
 
 		if err := save(quote); err != nil {
 			return err

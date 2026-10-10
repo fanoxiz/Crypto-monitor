@@ -39,7 +39,9 @@ gen-proto:
 up:
 	$(COMPOSE) up --build
 
-reup: up
+reup:
+	make down
+	make up
 
 down:
 	$(COMPOSE) down

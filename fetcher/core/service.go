@@ -3,7 +3,6 @@ package core
 import (
 	"context"
 	"log"
-	"math/rand/v2"
 	"sync"
 	"time"
 
@@ -78,15 +77,13 @@ func (s *FetcherService) runWriter(ctx context.Context, buffer *quoteBuffer) {
 }
 
 func (s *FetcherService) runExchange(ctx context.Context, exchange Exchange, coins []string, onQuote func(contracts.Quote) error) {
-	delay := time.Second
+	failures := 0
 
 	for ctx.Err() == nil {
-		received := false
-
 		log.Printf("level=INFO component=core event=stream_starting exchange=%s", exchange.Name())
 
 		err := exchange.Stream(ctx, coins, func(quote contracts.Quote) error {
-			received = true
+			failures = 0
 
 			return onQuote(quote)
 		})
@@ -95,20 +92,22 @@ func (s *FetcherService) runExchange(ctx context.Context, exchange Exchange, coi
 			return
 		}
 
-		if received {
-			delay = time.Second
+		failures++
+
+		if failures >= 5 {
+			log.Printf("level=ERROR component=core event=exchange_disabled exchange=%s failures=%d err=%q", exchange.Name(), failures, err)
+
+			return
 		}
 
-		retryAfter := delay/2 + time.Duration(rand.Int64N(int64(delay/2)))
+		retryAfter := time.Duration(failures) * 500 * time.Millisecond
 
-		log.Printf("level=ERROR component=core event=stream_failed exchange=%s retry_after=%s err=%q", exchange.Name(), retryAfter, err)
+		log.Printf("level=ERROR component=core event=stream_failed exchange=%s failures=%d retry_after=%s err=%q", exchange.Name(), failures, retryAfter, err)
 
 		select {
 		case <-ctx.Done():
 			return
 		case <-time.After(retryAfter):
 		}
-
-		delay = min(2*delay, 10*time.Second)
 	}
 }
