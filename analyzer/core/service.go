@@ -31,67 +31,7 @@ func (a *AnalyzerService) Run(ctx context.Context) {
 		prices := make(map[string][]marketQuote)
 
 		err := a.store.Stream(ctx, func(quote contracts.Quote) {
-			if ctx.Err() != nil {
-				return
-			}
-
-			now := time.Now().UTC()
-			exchanges := prices[quote.Coin]
-			index := -1
-
-			for i, price := range exchanges {
-				if price.exchange == quote.Exchange {
-					if quote.ReceivedAt.Before(price.receivedAt) {
-						return
-					}
-
-					index = i
-					break
-				}
-			}
-
-			price, valid := a.parseQuote(quote, now)
-
-			if valid {
-				if index < 0 {
-					exchanges = append(exchanges, price)
-				} else {
-					exchanges[index] = price
-				}
-			} else if index >= 0 {
-				exchanges = append(exchanges[:index], exchanges[index+1:]...)
-			}
-
-			current := exchanges[:0]
-
-			for _, price := range exchanges {
-				if a.fresh(price.receivedAt, now) {
-					current = append(current, price)
-				}
-			}
-
-			prices[quote.Coin] = current
-
-			deal, exists := a.findDeal(quote.Coin, current, now)
-			if !exists {
-				return
-			}
-
-			if err := a.sender.Send(ctx, deal); err != nil {
-				if ctx.Err() != nil {
-					return
-				}
-
-				log.Printf("level=ERROR component=core event=deal_send_failed coin=%s err=%q", deal.Coin, err)
-				return
-			}
-
-			log.Printf("level=DEBUG component=core event=deal_sent coin=%s buy_exchange=%s sell_exchange=%s profit_usdt=%.8g",
-				deal.Coin,
-				deal.BuyExchange,
-				deal.SellExchange,
-				deal.ProfitUSDT,
-			)
+			a.handleQuote(ctx, quote, prices)
 		})
 
 		if ctx.Err() != nil {
@@ -106,6 +46,70 @@ func (a *AnalyzerService) Run(ctx context.Context) {
 		case <-time.After(time.Second):
 		}
 	}
+}
+
+func (a *AnalyzerService) handleQuote(ctx context.Context, quote contracts.Quote, prices map[string][]marketQuote) {
+	if ctx.Err() != nil {
+		return
+	}
+
+	now := time.Now().UTC()
+	exchanges := prices[quote.Coin]
+	index := -1
+
+	for i, price := range exchanges {
+		if price.exchange == quote.Exchange {
+			if quote.ReceivedAt.Before(price.receivedAt) {
+				return
+			}
+
+			index = i
+			break
+		}
+	}
+
+	price, valid := a.parseQuote(quote, now)
+
+	if valid {
+		if index < 0 {
+			exchanges = append(exchanges, price)
+		} else {
+			exchanges[index] = price
+		}
+	} else if index >= 0 {
+		exchanges = append(exchanges[:index], exchanges[index+1:]...)
+	}
+
+	current := exchanges[:0]
+
+	for _, price := range exchanges {
+		if a.fresh(price.receivedAt, now) {
+			current = append(current, price)
+		}
+	}
+
+	prices[quote.Coin] = current
+
+	deal, exists := a.findDeal(quote.Coin, current, now)
+	if !exists {
+		return
+	}
+
+	if err := a.sender.Send(ctx, deal); err != nil {
+		if ctx.Err() != nil {
+			return
+		}
+
+		log.Printf("level=ERROR component=core event=deal_send_failed coin=%s err=%q", deal.Coin, err)
+		return
+	}
+
+	log.Printf("level=DEBUG component=core event=deal_sent coin=%s buy_exchange=%s sell_exchange=%s profit_usdt=%.8g",
+		deal.Coin,
+		deal.BuyExchange,
+		deal.SellExchange,
+		deal.ProfitUSDT,
+	)
 }
 
 func (a *AnalyzerService) FindDeals(quotes []contracts.Quote, now time.Time) []contracts.ProfitDealInfo {
