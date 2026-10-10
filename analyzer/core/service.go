@@ -112,27 +112,6 @@ func (a *AnalyzerService) handleQuote(ctx context.Context, quote contracts.Quote
 	)
 }
 
-func (a *AnalyzerService) FindDeals(quotes []contracts.Quote, now time.Time) []contracts.ProfitDealInfo {
-	prices := make(map[string][]marketQuote)
-
-	for _, quote := range quotes {
-		price, valid := a.parseQuote(quote, now)
-		if valid {
-			prices[quote.Coin] = append(prices[quote.Coin], price)
-		}
-	}
-
-	var deals []contracts.ProfitDealInfo
-
-	for coin, exchanges := range prices {
-		if deal, exists := a.findDeal(coin, exchanges, now); exists {
-			deals = append(deals, deal)
-		}
-	}
-
-	return deals
-}
-
 func (a *AnalyzerService) findDeal(coin string, exchanges []marketQuote, now time.Time) (contracts.ProfitDealInfo, bool) {
 	var best contracts.ProfitDealInfo
 	var bestQuantity float64

@@ -44,16 +44,10 @@ func decodeBybit(raw []byte) (contracts.Quote, error) {
 		return contracts.Quote{}, err
 	}
 
-	if len(data.Data.Bids) == 0 || len(data.Data.Asks) == 0 || len(data.Data.Bids[0]) < 2 || len(data.Data.Asks[0]) < 2 {
-		return contracts.Quote{}, nil
-	}
-
-	return contracts.Quote{
-		Coin:     strings.TrimSuffix(data.Data.Symbol, "USDT"),
-		Exchange: "Bybit",
-		BidPrice: data.Data.Bids[0][0],
-		BidSize:  data.Data.Bids[0][1],
-		AskPrice: data.Data.Asks[0][0],
-		AskSize:  data.Data.Asks[0][1],
-	}, nil
+	return quoteFromBook(
+		strings.TrimSuffix(data.Data.Symbol, "USDT"),
+		"Bybit",
+		data.Data.Bids,
+		data.Data.Asks,
+	), nil
 }
