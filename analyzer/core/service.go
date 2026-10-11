@@ -29,6 +29,7 @@ func NewAnalyzerService(fees map[string]float64, store QuoteStore, sender DealSe
 func (a *AnalyzerService) Run(ctx context.Context) {
 	ctx, cancel := context.WithCancel(ctx)
 	deals := make(chan contracts.ProfitDealInfo, dealQueueCapacity)
+	fingerprints := make(map[string]dealFingerprint)
 	senderDone := make(chan struct{})
 
 	go func() {
@@ -48,7 +49,7 @@ func (a *AnalyzerService) Run(ctx context.Context) {
 		slog.Info("quote_stream_starting", "component", "core")
 
 		err := a.store.Stream(ctx, func(quote contracts.Quote) {
-			a.handleQuote(ctx, quote, prices, deals)
+			a.handleQuote(ctx, quote, prices, deals, fingerprints)
 		})
 
 		if ctx.Err() != nil {
@@ -65,7 +66,7 @@ func (a *AnalyzerService) Run(ctx context.Context) {
 	}
 }
 
-func (a *AnalyzerService) handleQuote(ctx context.Context, quote contracts.Quote, prices map[string][]marketQuote, deals chan contracts.ProfitDealInfo) {
+func (a *AnalyzerService) handleQuote(ctx context.Context, quote contracts.Quote, prices map[string][]marketQuote, deals chan contracts.ProfitDealInfo, fingerprints map[string]dealFingerprint) {
 	if ctx.Err() != nil {
 		return
 	}
@@ -118,18 +119,27 @@ func (a *AnalyzerService) handleQuote(ctx context.Context, quote contracts.Quote
 
 	prices[quote.Coin] = current
 
-	deal, exists := a.findDeal(quote.Coin, current, now)
+	deal, fingerprint, exists := a.findDeal(quote.Coin, current, now)
 	if !exists {
 		slog.Debug("deal_not_found", "component", "core", "coin", quote.Coin, "available_exchanges", len(current))
 
 		return
 	}
 
-	a.enqueueDeal(ctx, deals, deal)
+	if previous, exists := fingerprints[quote.Coin]; exists && previous == fingerprint {
+		slog.Debug("deal_duplicate_skipped", "component", "core", "coin", quote.Coin, "buy_exchange", fingerprint.buyExchange, "sell_exchange", fingerprint.sellExchange, "buy_price", fingerprint.buyPrice, "sell_price", fingerprint.sellPrice, "quantity", fingerprint.quantity)
+
+		return
+	}
+
+	if a.enqueueDeal(ctx, deals, deal) {
+		fingerprints[quote.Coin] = fingerprint
+	}
 }
 
-func (a *AnalyzerService) findDeal(coin string, exchanges []marketQuote, now time.Time) (contracts.ProfitDealInfo, bool) {
+func (a *AnalyzerService) findDeal(coin string, exchanges []marketQuote, now time.Time) (contracts.ProfitDealInfo, dealFingerprint, bool) {
 	var best contracts.ProfitDealInfo
+	var fingerprint dealFingerprint
 
 	for _, buy := range exchanges {
 		for _, sell := range exchanges {
@@ -165,12 +175,19 @@ func (a *AnalyzerService) findDeal(coin string, exchanges []marketQuote, now tim
 				ProfitUSDT:     profit,
 				DetectedAt:     now,
 			}
+			fingerprint = dealFingerprint{
+				buyExchange:  buy.exchange,
+				sellExchange: sell.exchange,
+				buyPrice:     buy.askPrice,
+				sellPrice:    sell.bidPrice,
+				quantity:     quantity,
+			}
 
 			slog.Debug("deal_candidate_selected", "component", "core", "coin", coin, "buy_exchange", buy.exchange, "sell_exchange", sell.exchange, "quantity", quantity, "buy_usdt", buyAmount, "sell_usdt", sellAmount, "profit_usdt", profit)
 		}
 	}
 
-	return best, best.ProfitUSDT > 0
+	return best, fingerprint, best.ProfitUSDT > 0
 }
 
 func (a *AnalyzerService) parseQuote(quote contracts.Quote, now time.Time) (marketQuote, bool) {
@@ -227,6 +244,8 @@ func (a *AnalyzerService) parseQuote(quote contracts.Quote, now time.Time) (mark
 
 	price := marketQuote{
 		exchange:     quote.Exchange,
+		askPrice:     values[1],
+		bidPrice:     values[0],
 		askSize:      values[3],
 		bidSize:      values[2],
 		buyCost:      values[1] * (1 + fee),

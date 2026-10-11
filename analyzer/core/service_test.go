@@ -44,10 +44,8 @@ func testQuote(exchange, bid, ask string, receivedAt time.Time) contracts.Quote 
 	}
 }
 
-func TestStreamKeepsNewerStateAndAllowsRepeatedDeals(t *testing.T) {
-	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
-	defer cancel()
-
+func TestHandleQuoteKeepsNewerStateAndSuppressesRepeatedDeals(t *testing.T) {
+	ctx := t.Context()
 	now := time.Now().UTC()
 	quotes := []contracts.Quote{
 		testQuote("A", "99", "100", now),
@@ -55,40 +53,22 @@ func TestStreamKeepsNewerStateAndAllowsRepeatedDeals(t *testing.T) {
 		testQuote("A", "49", "50", now.Add(-time.Second)),
 		testQuote("B", "110", "111", now),
 	}
-	sender := &testDealSender{
-		sent: make(chan struct{}, 2),
-	}
-	store := testQuoteStore{
-		stream: func(ctx context.Context, handle func(contracts.Quote)) error {
-			for _, quote := range quotes {
-				handle(quote)
-			}
+	service := NewAnalyzerService(map[string]float64{"A": 0, "B": 0}, nil, nil, 500*time.Millisecond)
+	prices := make(map[string][]marketQuote)
+	fingerprints := make(map[string]dealFingerprint)
+	deals := make(chan contracts.ProfitDealInfo, dealQueueCapacity)
 
-			for range 2 {
-				select {
-				case <-sender.sent:
-				case <-ctx.Done():
-					return ctx.Err()
-				}
-			}
-
-			cancel()
-
-			return ctx.Err()
-		},
-	}
-	service := NewAnalyzerService(map[string]float64{"A": 0, "B": 0}, store, sender, 500*time.Millisecond)
-
-	service.Run(ctx)
-
-	if len(sender.deals) != 2 {
-		t.Fatalf("expected two repeated deals, got %d", len(sender.deals))
+	for _, quote := range quotes {
+		service.handleQuote(ctx, quote, prices, deals, fingerprints)
 	}
 
-	for _, deal := range sender.deals {
-		if deal.BuyExchange != "A" || deal.SellExchange != "B" || deal.ProfitUSDT != 10 {
-			t.Fatalf("older quote replaced current state: %+v", deal)
-		}
+	if len(deals) != 1 {
+		t.Fatalf("expected one queued deal after duplicate suppression, got %d", len(deals))
+	}
+
+	deal := <-deals
+	if deal.BuyExchange != "A" || deal.SellExchange != "B" || deal.ProfitUSDT != 10 {
+		t.Fatalf("older quote replaced current state: %+v", deal)
 	}
 }
 
