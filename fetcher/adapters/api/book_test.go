@@ -105,6 +105,12 @@ func TestDecodeBookQuotes(t *testing.T) {
 					expected := contracts.Quote{}
 					if book.valid {
 						expected = want
+					} else if book.name == "empty_bids" || book.name == "empty_asks" {
+						expected = contracts.Quote{
+							Coin:        "BTC",
+							Exchange:    exchange.name,
+							Invalidated: true,
+						}
 					}
 
 					if quote != expected {

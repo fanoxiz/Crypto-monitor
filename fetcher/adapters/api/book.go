@@ -3,7 +3,19 @@ package api
 import "github.com/fanoxiz/crypto-monitor/contracts"
 
 func quoteFromBook(coin, exchange string, bids, asks [][]string) contracts.Quote {
-	if len(bids) == 0 || len(asks) == 0 || len(bids[0]) < 2 || len(asks[0]) < 2 {
+	if coin == "" || bids == nil || asks == nil {
+		return contracts.Quote{}
+	}
+
+	if len(bids) == 0 || len(asks) == 0 {
+		return contracts.Quote{
+			Coin:        coin,
+			Exchange:    exchange,
+			Invalidated: true,
+		}
+	}
+
+	if len(bids[0]) < 2 || len(asks[0]) < 2 {
 		return contracts.Quote{}
 	}
 

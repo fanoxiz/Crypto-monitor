@@ -17,6 +17,8 @@ type Quote struct {
 	AskPrice string `json:"ask_price"`
 	AskSize  string `json:"ask_size"`
 
+	Invalidated bool `json:"invalidated,omitempty"`
+
 	ReceivedAt time.Time `json:"received_at"`
 }
 

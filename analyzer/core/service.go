@@ -152,6 +152,10 @@ func (a *AnalyzerService) findDeal(coin string, exchanges []marketQuote, now tim
 }
 
 func (a *AnalyzerService) parseQuote(quote contracts.Quote, now time.Time) (marketQuote, bool) {
+	if quote.Invalidated {
+		return marketQuote{}, false
+	}
+
 	fee, exists := a.fees[quote.Exchange]
 	if !exists || math.IsNaN(fee) || math.IsInf(fee, 0) || fee < 0 || fee >= 1 || quote.Coin == "" {
 		return marketQuote{}, false

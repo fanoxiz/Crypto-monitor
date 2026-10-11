@@ -34,7 +34,14 @@ func (s *RedisQuoteStore) SaveBatch(ctx context.Context, quotes []contracts.Quot
 				return err
 			}
 
-			pipe.Set(ctx, contracts.QuoteKey(quote.Coin, quote.Exchange), data, ttl)
+			key := contracts.QuoteKey(quote.Coin, quote.Exchange)
+
+			if quote.Invalidated {
+				pipe.Del(ctx, key)
+			} else {
+				pipe.Set(ctx, key, data, ttl)
+			}
+
 			pipe.Publish(ctx, contracts.QuotesChannel, data)
 		}
 
