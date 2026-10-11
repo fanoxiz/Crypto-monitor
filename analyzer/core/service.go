@@ -129,7 +129,6 @@ func (a *AnalyzerService) handleQuote(ctx context.Context, quote contracts.Quote
 
 func (a *AnalyzerService) findDeal(coin string, exchanges []marketQuote, now time.Time) (contracts.ProfitDealInfo, bool) {
 	var best contracts.ProfitDealInfo
-	var bestQuantity float64
 
 	for _, buy := range exchanges {
 		for _, sell := range exchanges {
@@ -140,18 +139,18 @@ func (a *AnalyzerService) findDeal(coin string, exchanges []marketQuote, now tim
 			}
 
 			quantity := math.Min(buy.askSize, sell.bidSize)
-			if quantity <= bestQuantity {
-				slog.Debug("deal_pair_skipped", "component", "core", "coin", coin, "buy_exchange", buy.exchange, "sell_exchange", sell.exchange, "reason", "quantity_not_better", "quantity", quantity, "best_quantity", bestQuantity)
-
-				continue
-			}
-
 			buyAmount := quantity * buy.buyCost
 			sellAmount := quantity * sell.sellProceeds
 			profit := sellAmount - buyAmount
 
 			if !positiveFinite(buyAmount) || !positiveFinite(sellAmount) || !positiveFinite(profit) {
 				slog.Debug("deal_pair_skipped", "component", "core", "coin", coin, "buy_exchange", buy.exchange, "sell_exchange", sell.exchange, "reason", "invalid_amounts", "buy_usdt", buyAmount, "sell_usdt", sellAmount, "profit_usdt", profit)
+
+				continue
+			}
+
+			if profit <= best.ProfitUSDT {
+				slog.Debug("deal_pair_skipped", "component", "core", "coin", coin, "buy_exchange", buy.exchange, "sell_exchange", sell.exchange, "reason", "profit_not_better", "profit_usdt", profit, "best_profit_usdt", best.ProfitUSDT)
 
 				continue
 			}
@@ -165,13 +164,12 @@ func (a *AnalyzerService) findDeal(coin string, exchanges []marketQuote, now tim
 				ProfitUSDT:     profit,
 				DetectedAt:     now,
 			}
-			bestQuantity = quantity
 
 			slog.Debug("deal_candidate_selected", "component", "core", "coin", coin, "buy_exchange", buy.exchange, "sell_exchange", sell.exchange, "quantity", quantity, "buy_usdt", buyAmount, "sell_usdt", sellAmount, "profit_usdt", profit)
 		}
 	}
 
-	return best, bestQuantity > 0
+	return best, best.ProfitUSDT > 0
 }
 
 func (a *AnalyzerService) parseQuote(quote contracts.Quote, now time.Time) (marketQuote, bool) {
