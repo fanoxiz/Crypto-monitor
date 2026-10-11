@@ -27,13 +27,28 @@ func NewAnalyzerService(fees map[string]float64, store QuoteStore, sender DealSe
 }
 
 func (a *AnalyzerService) Run(ctx context.Context) {
+	ctx, cancel := context.WithCancel(ctx)
+	deals := make(chan contracts.ProfitDealInfo, dealQueueCapacity)
+	senderDone := make(chan struct{})
+
+	go func() {
+		defer close(senderDone)
+
+		a.runSender(ctx, deals)
+	}()
+
+	defer func() {
+		cancel()
+		<-senderDone
+	}()
+
 	for ctx.Err() == nil {
 		prices := make(map[string][]marketQuote)
 
 		slog.Info("quote_stream_starting", "component", "core")
 
 		err := a.store.Stream(ctx, func(quote contracts.Quote) {
-			a.handleQuote(ctx, quote, prices)
+			a.handleQuote(ctx, quote, prices, deals)
 		})
 
 		if ctx.Err() != nil {
@@ -50,7 +65,7 @@ func (a *AnalyzerService) Run(ctx context.Context) {
 	}
 }
 
-func (a *AnalyzerService) handleQuote(ctx context.Context, quote contracts.Quote, prices map[string][]marketQuote) {
+func (a *AnalyzerService) handleQuote(ctx context.Context, quote contracts.Quote, prices map[string][]marketQuote, deals chan contracts.ProfitDealInfo) {
 	if ctx.Err() != nil {
 		return
 	}
@@ -110,21 +125,7 @@ func (a *AnalyzerService) handleQuote(ctx context.Context, quote contracts.Quote
 		return
 	}
 
-	startedAt := time.Now()
-
-	slog.Debug("deal_sending", "component", "core", "coin", deal.Coin, "buy_exchange", deal.BuyExchange, "sell_exchange", deal.SellExchange, "buy_usdt", deal.BuyAmountUSDT, "sell_usdt", deal.SellAmountUSDT, "profit_usdt", deal.ProfitUSDT, "detected_at", deal.DetectedAt)
-
-	if err := a.sender.Send(ctx, deal); err != nil {
-		if ctx.Err() != nil {
-			return
-		}
-
-		slog.Error("deal_send_failed", "component", "core", "coin", deal.Coin, "buy_exchange", deal.BuyExchange, "sell_exchange", deal.SellExchange, "duration", time.Since(startedAt), "error", err)
-
-		return
-	}
-
-	slog.Debug("deal_sent", "component", "core", "coin", deal.Coin, "buy_exchange", deal.BuyExchange, "sell_exchange", deal.SellExchange, "profit_usdt", deal.ProfitUSDT, "duration", time.Since(startedAt))
+	a.enqueueDeal(ctx, deals, deal)
 }
 
 func (a *AnalyzerService) findDeal(coin string, exchanges []marketQuote, now time.Time) (contracts.ProfitDealInfo, bool) {
