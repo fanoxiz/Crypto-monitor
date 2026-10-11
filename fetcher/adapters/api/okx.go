@@ -45,8 +45,9 @@ func decodeOKX(raw []byte) (contracts.Quote, error) {
 			Symbol string `json:"instId"`
 		} `json:"arg"`
 		Data []struct {
-			Bids [][]string `json:"bids"`
-			Asks [][]string `json:"asks"`
+			Bids      [][]string  `json:"bids"`
+			Asks      [][]string  `json:"asks"`
+			Timestamp json.Number `json:"ts"`
 		} `json:"data"`
 	}
 
@@ -70,10 +71,16 @@ func decodeOKX(raw []byte) (contracts.Quote, error) {
 
 	item := data.Data[0]
 
-	return quoteFromBook(
+	quote := quoteFromBook(
 		strings.TrimSuffix(data.Arg.Symbol, "-USDT"),
 		"OKX",
 		item.Bids,
 		item.Asks,
-	), nil
+	)
+
+	if quote.Coin != "" {
+		quote.SourceAt = sourceTime(item.Timestamp)
+	}
+
+	return quote, nil
 }

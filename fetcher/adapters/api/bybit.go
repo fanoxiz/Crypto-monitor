@@ -35,11 +35,13 @@ func (a BybitAdapter) Stream(ctx context.Context, coins []string, save func(cont
 
 func decodeBybit(raw []byte) (contracts.Quote, error) {
 	var data struct {
-		Success   *bool  `json:"success"`
-		Operation string `json:"op"`
-		Message   string `json:"ret_msg"`
-		RequestID string `json:"req_id"`
-		Data      struct {
+		Success         *bool       `json:"success"`
+		Operation       string      `json:"op"`
+		Message         string      `json:"ret_msg"`
+		RequestID       string      `json:"req_id"`
+		Timestamp       json.Number `json:"ts"`
+		EngineTimestamp json.Number `json:"cts"`
+		Data            struct {
 			Symbol string     `json:"s"`
 			Bids   [][]string `json:"b"`
 			Asks   [][]string `json:"a"`
@@ -60,10 +62,19 @@ func decodeBybit(raw []byte) (contracts.Quote, error) {
 		return contracts.Quote{}, nil
 	}
 
-	return quoteFromBook(
+	quote := quoteFromBook(
 		strings.TrimSuffix(data.Data.Symbol, "USDT"),
 		"Bybit",
 		data.Data.Bids,
 		data.Data.Asks,
-	), nil
+	)
+
+	if quote.Coin != "" {
+		quote.SourceAt = sourceTime(data.EngineTimestamp)
+		if quote.SourceAt.IsZero() {
+			quote.SourceAt = sourceTime(data.Timestamp)
+		}
+	}
+
+	return quote, nil
 }

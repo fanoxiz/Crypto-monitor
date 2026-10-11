@@ -4,7 +4,7 @@ tracked_coins:
   - XAUT
 
 redis_addr: localhost:6379
-price_ttl: 500ms
+price_ttl: 600ms
 
 binance_ws_url: "wss://data-stream.binance.vision/ws"
 bybit_ws_url: "wss://stream.bybit.com/v5/public/spot"

@@ -9,4 +9,5 @@ type marketQuote struct {
 	buyCost      float64
 	sellProceeds float64
 	receivedAt   time.Time
+	expiresAt    time.Time
 }

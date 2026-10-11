@@ -19,7 +19,9 @@ type Quote struct {
 
 	Invalidated bool `json:"invalidated,omitempty"`
 
+	SourceAt   time.Time `json:"source_at"`
 	ReceivedAt time.Time `json:"received_at"`
+	ExpiresAt  time.Time `json:"expires_at"`
 }
 
 type ProfitDealInfo struct {

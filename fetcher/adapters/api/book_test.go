@@ -3,6 +3,7 @@ package api
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/fanoxiz/crypto-monitor/contracts"
 )
@@ -18,21 +19,21 @@ func TestDecodeBookQuotes(t *testing.T) {
 		{
 			name:      "Bybit",
 			decode:    decodeBybit,
-			book:      `{"topic":"orderbook.1.BTCUSDT","type":"snapshot","data":{"s":"BTCUSDT","b":%s,"a":%s}}`,
+			book:      `{"topic":"orderbook.1.BTCUSDT","type":"snapshot","ts":1700000000200,"cts":1700000000000,"data":{"s":"BTCUSDT","b":%s,"a":%s}}`,
 			emptyData: `{"data":{}}`,
 			control:   `{"success":true,"op":"subscribe"}`,
 		},
 		{
 			name:      "Bitget",
 			decode:    decodeBitget,
-			book:      `{"arg":{"instType":"spot","topic":"books1","symbol":"BTCUSDT"},"action":"snapshot","data":[{"b":%s,"a":%s}]}`,
+			book:      `{"arg":{"instType":"spot","topic":"books1","symbol":"BTCUSDT"},"action":"snapshot","ts":1700000000200,"data":[{"b":%s,"a":%s,"ts":"1700000000000"}]}`,
 			emptyData: `{"data":[]}`,
 			control:   `{"event":"subscribe","arg":{"instType":"spot","topic":"books1","symbol":"BTCUSDT"}}`,
 		},
 		{
 			name:      "OKX",
 			decode:    decodeOKX,
-			book:      `{"arg":{"channel":"bbo-tbt","instId":"BTC-USDT"},"data":[{"bids":%s,"asks":%s}]}`,
+			book:      `{"arg":{"channel":"bbo-tbt","instId":"BTC-USDT"},"data":[{"bids":%s,"asks":%s,"ts":"1700000000000"}]}`,
 			emptyData: `{"data":[]}`,
 			control:   `{"event":"subscribe","arg":{"channel":"bbo-tbt","instId":"BTC-USDT"}}`,
 		},
@@ -49,6 +50,7 @@ func TestDecodeBookQuotes(t *testing.T) {
 				BidSize:  "3.2",
 				AskPrice: "101.3",
 				AskSize:  "4.4",
+				SourceAt: time.UnixMilli(1700000000000).UTC(),
 			}
 			books := []struct {
 				name  string
@@ -110,6 +112,7 @@ func TestDecodeBookQuotes(t *testing.T) {
 							Coin:        "BTC",
 							Exchange:    exchange.name,
 							Invalidated: true,
+							SourceAt:    time.UnixMilli(1700000000000).UTC(),
 						}
 					}
 

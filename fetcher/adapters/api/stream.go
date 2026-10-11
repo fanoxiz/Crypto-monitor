@@ -135,7 +135,7 @@ func stream(ctx context.Context, exchange, endpoint string, request any, heartbe
 			invalidations++
 			logger.Info("quote_invalidated", "coin", quote.Coin, "reason", "empty_book", "received_at", receivedAt)
 		} else {
-			logger.Debug("quote_received", "coin", quote.Coin, "bid_price", quote.BidPrice, "bid_size", quote.BidSize, "ask_price", quote.AskPrice, "ask_size", quote.AskSize, "received_at", receivedAt)
+			logger.Debug("quote_received", "coin", quote.Coin, "bid_price", quote.BidPrice, "bid_size", quote.BidSize, "ask_price", quote.AskPrice, "ask_size", quote.AskSize, "source_at", quote.SourceAt, "received_at", receivedAt)
 		}
 
 		if receivedAt.Sub(summaryAt) >= 30*time.Second {

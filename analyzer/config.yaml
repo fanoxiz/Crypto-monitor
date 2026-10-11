@@ -11,7 +11,7 @@ exchanges:
 
 redis_addr: localhost:6379
 executor_grpc_addr: localhost:8082
-max_quote_age: 500ms
+max_quote_age: 600ms
 
 # test fees
 

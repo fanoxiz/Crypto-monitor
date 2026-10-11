@@ -39,15 +39,17 @@ func (a BitgetAdapter) Stream(ctx context.Context, coins []string, save func(con
 
 func decodeBitget(raw []byte) (contracts.Quote, error) {
 	var data struct {
-		Event   string `json:"event"`
-		Code    string `json:"code"`
-		Message string `json:"msg"`
-		Arg     struct {
+		Event     string      `json:"event"`
+		Code      string      `json:"code"`
+		Message   string      `json:"msg"`
+		Timestamp json.Number `json:"ts"`
+		Arg       struct {
 			Symbol string `json:"symbol"`
 		} `json:"arg"`
 		Data []struct {
-			Bids [][]string `json:"b"`
-			Asks [][]string `json:"a"`
+			Bids      [][]string  `json:"b"`
+			Asks      [][]string  `json:"a"`
+			Timestamp json.Number `json:"ts"`
 		} `json:"data"`
 	}
 
@@ -71,10 +73,19 @@ func decodeBitget(raw []byte) (contracts.Quote, error) {
 
 	item := data.Data[0]
 
-	return quoteFromBook(
+	quote := quoteFromBook(
 		strings.TrimSuffix(data.Arg.Symbol, "USDT"),
 		"Bitget",
 		item.Bids,
 		item.Asks,
-	), nil
+	)
+
+	if quote.Coin != "" {
+		quote.SourceAt = sourceTime(item.Timestamp)
+		if quote.SourceAt.IsZero() {
+			quote.SourceAt = sourceTime(data.Timestamp)
+		}
+	}
+
+	return quote, nil
 }

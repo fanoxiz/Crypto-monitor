@@ -57,7 +57,7 @@ func (a *AnalyzerService) handleQuote(ctx context.Context, quote contracts.Quote
 
 	now := time.Now().UTC()
 
-	slog.Debug("quote_processing", "component", "core", "coin", quote.Coin, "exchange", quote.Exchange, "age", now.Sub(quote.ReceivedAt), "invalidated", quote.Invalidated)
+	slog.Debug("quote_processing", "component", "core", "coin", quote.Coin, "exchange", quote.Exchange, "source_at", quote.SourceAt, "expires_at", quote.ExpiresAt, "age", now.Sub(quote.ReceivedAt), "invalidated", quote.Invalidated)
 
 	exchanges := prices[quote.Coin]
 	index := -1
@@ -94,10 +94,10 @@ func (a *AnalyzerService) handleQuote(ctx context.Context, quote contracts.Quote
 	current := exchanges[:0]
 
 	for _, price := range exchanges {
-		if a.fresh(price.receivedAt, now) {
+		if a.fresh(price.receivedAt, price.expiresAt, now) {
 			current = append(current, price)
 		} else {
-			slog.Debug("cached_quote_expired", "component", "core", "coin", quote.Coin, "exchange", price.exchange, "age", now.Sub(price.receivedAt))
+			slog.Debug("cached_quote_expired", "component", "core", "coin", quote.Coin, "exchange", price.exchange, "expires_at", price.expiresAt, "age", now.Sub(price.receivedAt))
 		}
 	}
 
@@ -188,8 +188,8 @@ func (a *AnalyzerService) parseQuote(quote contracts.Quote, now time.Time) (mark
 		return marketQuote{}, false
 	}
 
-	if !a.fresh(quote.ReceivedAt, now) {
-		slog.Debug("quote_rejected", "component", "core", "coin", quote.Coin, "exchange", quote.Exchange, "reason", "invalid_age", "received_at", quote.ReceivedAt, "age", now.Sub(quote.ReceivedAt), "max_quote_age", a.maxQuoteAge)
+	if !a.fresh(quote.ReceivedAt, quote.ExpiresAt, now) {
+		slog.Debug("quote_rejected", "component", "core", "coin", quote.Coin, "exchange", quote.Exchange, "reason", "invalid_age", "source_at", quote.SourceAt, "received_at", quote.ReceivedAt, "expires_at", quote.ExpiresAt, "age", now.Sub(quote.ReceivedAt), "max_quote_age", a.maxQuoteAge)
 
 		return marketQuote{}, false
 	}
@@ -233,6 +233,7 @@ func (a *AnalyzerService) parseQuote(quote contracts.Quote, now time.Time) (mark
 		buyCost:      values[1] * (1 + fee),
 		sellProceeds: values[0] * (1 - fee),
 		receivedAt:   quote.ReceivedAt,
+		expiresAt:    quote.ExpiresAt,
 	}
 
 	if !positiveFinite(price.buyCost) || !positiveFinite(price.sellProceeds) {
@@ -244,10 +245,10 @@ func (a *AnalyzerService) parseQuote(quote contracts.Quote, now time.Time) (mark
 	return price, true
 }
 
-func (a *AnalyzerService) fresh(receivedAt, now time.Time) bool {
+func (a *AnalyzerService) fresh(receivedAt, expiresAt, now time.Time) bool {
 	age := now.Sub(receivedAt)
 
-	return !receivedAt.IsZero() && age >= 0 && age <= a.maxQuoteAge
+	return !receivedAt.IsZero() && age >= 0 && age <= a.maxQuoteAge && (expiresAt.IsZero() || now.Before(expiresAt))
 }
 
 func positiveFinite(value float64) bool {

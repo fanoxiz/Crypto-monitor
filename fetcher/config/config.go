@@ -11,7 +11,7 @@ import (
 type Config struct {
 	TrackedCoins []string      `yaml:"tracked_coins" env:"TRACKED_COINS"`
 	RedisAddr    string        `yaml:"redis_addr" env:"REDIS_ADDR" env-default:"localhost:6379"`
-	PriceTTL     time.Duration `yaml:"price_ttl" env:"FETCHER_PRICE_TTL" env-default:"500ms"`
+	PriceTTL     time.Duration `yaml:"price_ttl" env:"FETCHER_PRICE_TTL" env-default:"600ms"`
 	BinanceURL   string        `yaml:"binance_ws_url" env:"BINANCE_WS_URL"`
 	BybitURL     string        `yaml:"bybit_ws_url" env:"BYBIT_WS_URL"`
 	BitgetURL    string        `yaml:"bitget_ws_url" env:"BITGET_WS_URL"`
