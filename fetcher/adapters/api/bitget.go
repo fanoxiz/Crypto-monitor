@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"strings"
 
 	"github.com/fanoxiz/crypto-monitor/contracts"
@@ -34,17 +33,19 @@ func (a BitgetAdapter) Stream(ctx context.Context, coins []string, save func(con
 		"args": args,
 	}
 
-	return stream(ctx, a.Name(), a.URL, request, "ping", decodeBitget, save)
+	return stream(ctx, a.Name(), a.URL, coins, request, "ping", decodeBitget, save)
 }
 
-func decodeBitget(raw []byte) (contracts.Quote, error) {
+func decodeBitget(raw []byte) (streamMessage, error) {
 	var data struct {
 		Event     string      `json:"event"`
 		Code      string      `json:"code"`
 		Message   string      `json:"msg"`
 		Timestamp json.Number `json:"ts"`
 		Arg       struct {
-			Symbol string `json:"symbol"`
+			Symbol   string `json:"symbol"`
+			Topic    string `json:"topic"`
+			InstType string `json:"instType"`
 		} `json:"arg"`
 		Data []struct {
 			Bids      [][]string  `json:"b"`
@@ -54,21 +55,25 @@ func decodeBitget(raw []byte) (contracts.Quote, error) {
 	}
 
 	if err := json.Unmarshal(raw, &data); err != nil {
-		return contracts.Quote{}, err
+		return streamMessage{}, err
 	}
 
 	if data.Event == "error" {
-		return contracts.Quote{}, fmt.Errorf("Bitget subscription failed: symbol=%s code=%s message=%s", data.Arg.Symbol, data.Code, data.Message)
+		return streamMessage{}, fmt.Errorf("Bitget subscription failed: symbol=%s code=%s message=%s", data.Arg.Symbol, data.Code, data.Message)
 	}
 
 	if data.Event == "subscribe" {
-		slog.Info("subscription_confirmed", "component", "api", "exchange", "Bitget", "symbol", data.Arg.Symbol)
+		if data.Arg.Topic == "books1" && data.Arg.InstType == "spot" {
+			return streamMessage{
+				confirmedCoin: strings.TrimSuffix(data.Arg.Symbol, "USDT"),
+			}, nil
+		}
 
-		return contracts.Quote{}, nil
+		return streamMessage{}, nil
 	}
 
 	if len(data.Data) == 0 {
-		return contracts.Quote{}, nil
+		return streamMessage{}, nil
 	}
 
 	item := data.Data[0]
@@ -87,5 +92,8 @@ func decodeBitget(raw []byte) (contracts.Quote, error) {
 		}
 	}
 
-	return quote, nil
+	return streamMessage{
+		quote:    quote,
+		dataCoin: strings.TrimSuffix(data.Arg.Symbol, "USDT"),
+	}, nil
 }

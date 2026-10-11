@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"strings"
 
 	"github.com/fanoxiz/crypto-monitor/contracts"
@@ -31,10 +30,10 @@ func (a BinanceAdapter) Stream(ctx context.Context, coins []string, save func(co
 		"id":     1,
 	}
 
-	return stream(ctx, a.Name(), a.URL, request, "", decodeBinance, save)
+	return stream(ctx, a.Name(), a.URL, coins, request, "", decodeBinance, save)
 }
 
-func decodeBinance(raw []byte) (contracts.Quote, error) {
+func decodeBinance(raw []byte) (streamMessage, error) {
 	var data struct {
 		Code     *int            `json:"code"`
 		Message  string          `json:"msg"`
@@ -48,29 +47,34 @@ func decodeBinance(raw []byte) (contracts.Quote, error) {
 	}
 
 	if err := json.Unmarshal(raw, &data); err != nil {
-		return contracts.Quote{}, err
+		return streamMessage{}, err
 	}
 
 	if data.Code != nil {
-		return contracts.Quote{}, fmt.Errorf("Binance subscription failed: code=%d message=%s", *data.Code, data.Message)
+		return streamMessage{}, fmt.Errorf("Binance subscription failed: code=%d message=%s", *data.Code, data.Message)
 	}
 
 	if string(data.Result) == "null" {
-		slog.Info("subscription_confirmed", "component", "api", "exchange", "Binance", "request_id", string(data.ID))
-
-		return contracts.Quote{}, nil
+		return streamMessage{
+			confirmedAll: string(data.ID) == "1",
+		}, nil
 	}
 
 	if data.Symbol == "" {
-		return contracts.Quote{}, nil
+		return streamMessage{}, nil
 	}
 
-	return contracts.Quote{
-		Coin:     strings.TrimSuffix(data.Symbol, "USDT"),
-		Exchange: "Binance",
-		BidPrice: data.BidPrice,
-		BidSize:  data.BidSize,
-		AskPrice: data.AskPrice,
-		AskSize:  data.AskSize,
+	coin := strings.TrimSuffix(data.Symbol, "USDT")
+
+	return streamMessage{
+		dataCoin: coin,
+		quote: contracts.Quote{
+			Coin:     coin,
+			Exchange: "Binance",
+			BidPrice: data.BidPrice,
+			BidSize:  data.BidSize,
+			AskPrice: data.AskPrice,
+			AskSize:  data.AskSize,
+		},
 	}, nil
 }

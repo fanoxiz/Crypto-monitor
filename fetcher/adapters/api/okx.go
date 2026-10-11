@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"strings"
 
 	"github.com/fanoxiz/crypto-monitor/contracts"
@@ -33,16 +32,17 @@ func (a OKXAdapter) Stream(ctx context.Context, coins []string, save func(contra
 		"args": args,
 	}
 
-	return stream(ctx, a.Name(), a.URL, request, "ping", decodeOKX, save)
+	return stream(ctx, a.Name(), a.URL, coins, request, "ping", decodeOKX, save)
 }
 
-func decodeOKX(raw []byte) (contracts.Quote, error) {
+func decodeOKX(raw []byte) (streamMessage, error) {
 	var data struct {
 		Event   string `json:"event"`
 		Code    string `json:"code"`
 		Message string `json:"msg"`
 		Arg     struct {
-			Symbol string `json:"instId"`
+			Symbol  string `json:"instId"`
+			Channel string `json:"channel"`
 		} `json:"arg"`
 		Data []struct {
 			Bids      [][]string  `json:"bids"`
@@ -52,21 +52,25 @@ func decodeOKX(raw []byte) (contracts.Quote, error) {
 	}
 
 	if err := json.Unmarshal(raw, &data); err != nil {
-		return contracts.Quote{}, err
+		return streamMessage{}, err
 	}
 
 	if data.Event == "error" {
-		return contracts.Quote{}, fmt.Errorf("OKX subscription failed: symbol=%s code=%s message=%s", data.Arg.Symbol, data.Code, data.Message)
+		return streamMessage{}, fmt.Errorf("OKX subscription failed: symbol=%s code=%s message=%s", data.Arg.Symbol, data.Code, data.Message)
 	}
 
 	if data.Event == "subscribe" {
-		slog.Info("subscription_confirmed", "component", "api", "exchange", "OKX", "symbol", data.Arg.Symbol)
+		if data.Arg.Channel == "bbo-tbt" {
+			return streamMessage{
+				confirmedCoin: strings.TrimSuffix(data.Arg.Symbol, "-USDT"),
+			}, nil
+		}
 
-		return contracts.Quote{}, nil
+		return streamMessage{}, nil
 	}
 
 	if len(data.Data) == 0 {
-		return contracts.Quote{}, nil
+		return streamMessage{}, nil
 	}
 
 	item := data.Data[0]
@@ -82,5 +86,8 @@ func decodeOKX(raw []byte) (contracts.Quote, error) {
 		quote.SourceAt = sourceTime(item.Timestamp)
 	}
 
-	return quote, nil
+	return streamMessage{
+		quote:    quote,
+		dataCoin: strings.TrimSuffix(data.Arg.Symbol, "-USDT"),
+	}, nil
 }

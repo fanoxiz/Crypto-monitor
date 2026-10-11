@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"strings"
 
 	"github.com/fanoxiz/crypto-monitor/contracts"
@@ -26,14 +25,15 @@ func (a BybitAdapter) Stream(ctx context.Context, coins []string, save func(cont
 	}
 
 	request := map[string]any{
-		"op":   "subscribe",
-		"args": topics,
+		"op":     "subscribe",
+		"args":   topics,
+		"req_id": "quotes",
 	}
 
-	return stream(ctx, a.Name(), a.URL, request, `{"op":"ping"}`, decodeBybit, save)
+	return stream(ctx, a.Name(), a.URL, coins, request, `{"op":"ping"}`, decodeBybit, save)
 }
 
-func decodeBybit(raw []byte) (contracts.Quote, error) {
+func decodeBybit(raw []byte) (streamMessage, error) {
 	var data struct {
 		Success         *bool       `json:"success"`
 		Operation       string      `json:"op"`
@@ -49,17 +49,17 @@ func decodeBybit(raw []byte) (contracts.Quote, error) {
 	}
 
 	if err := json.Unmarshal(raw, &data); err != nil {
-		return contracts.Quote{}, err
+		return streamMessage{}, err
 	}
 
 	if data.Success != nil && !*data.Success {
-		return contracts.Quote{}, fmt.Errorf("Bybit request failed: operation=%s request_id=%s message=%s", data.Operation, data.RequestID, data.Message)
+		return streamMessage{}, fmt.Errorf("Bybit request failed: operation=%s request_id=%s message=%s", data.Operation, data.RequestID, data.Message)
 	}
 
 	if data.Operation == "subscribe" && data.Success != nil {
-		slog.Info("subscription_confirmed", "component", "api", "exchange", "Bybit", "request_id", data.RequestID)
-
-		return contracts.Quote{}, nil
+		return streamMessage{
+			confirmedAll: data.RequestID == "quotes",
+		}, nil
 	}
 
 	quote := quoteFromBook(
@@ -76,5 +76,8 @@ func decodeBybit(raw []byte) (contracts.Quote, error) {
 		}
 	}
 
-	return quote, nil
+	return streamMessage{
+		quote:    quote,
+		dataCoin: strings.TrimSuffix(data.Data.Symbol, "USDT"),
+	}, nil
 }

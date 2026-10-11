@@ -10,7 +10,7 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-func stream(ctx context.Context, exchange, endpoint string, request any, heartbeat string, decode func([]byte) (contracts.Quote, error), save func(contracts.Quote) error) error {
+func stream(ctx context.Context, exchange, endpoint string, coins []string, request any, heartbeat string, decode func([]byte) (streamMessage, error), save func(contracts.Quote) error) error {
 	logger := slog.With("component", "api", "exchange", exchange)
 	logger.Debug("connection_opening")
 
@@ -23,12 +23,18 @@ func stream(ctx context.Context, exchange, endpoint string, request any, heartbe
 	summaryAt := startedAt
 	var lastQuoteAt time.Time
 	var messages, quotes, invalidations, ignored int
+	instruments := make(map[string]*instrumentStatus, len(coins))
+
+	for _, coin := range coins {
+		instruments[coin] = &instrumentStatus{}
+	}
 
 	logger.Info("connection_opened")
 
 	defer func() {
 		conn.Close()
 		logger.Info("connection_closed", "duration", time.Since(startedAt), "messages", messages, "quotes", quotes, "invalidations", invalidations, "ignored", ignored, "last_quote_at", lastQuoteAt)
+		logInstrumentStatus(ctx, logger, instruments, coins, "connection_closed")
 	}()
 
 	if err := conn.SetWriteDeadline(time.Now().Add(500 * time.Millisecond)); err != nil {
@@ -113,12 +119,15 @@ func stream(ctx context.Context, exchange, endpoint string, request any, heartbe
 			continue
 		}
 
-		quote, err := decode(data)
+		message, err := decode(data)
 		if err != nil {
 			logger.Debug("message_decode_failed", "error", err)
 
 			return err
 		}
+
+		recordMessage(logger, instruments, message, receivedAt)
+		quote := message.quote
 
 		if quote.Coin == "" {
 			ignored++
@@ -140,6 +149,7 @@ func stream(ctx context.Context, exchange, endpoint string, request any, heartbe
 
 		if receivedAt.Sub(summaryAt) >= 30*time.Second {
 			logger.Info("stream_summary", "duration", receivedAt.Sub(startedAt), "messages", messages, "quotes", quotes, "invalidations", invalidations, "ignored", ignored, "last_quote_at", lastQuoteAt)
+			logInstrumentStatus(ctx, logger, instruments, coins, "stream_summary")
 			summaryAt = receivedAt
 		}
 
