@@ -2,7 +2,7 @@ package core
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"math"
 	"strconv"
 	"time"
@@ -30,6 +30,8 @@ func (a *AnalyzerService) Run(ctx context.Context) {
 	for ctx.Err() == nil {
 		prices := make(map[string][]marketQuote)
 
+		slog.Info("quote_stream_starting", "component", "core")
+
 		err := a.store.Stream(ctx, func(quote contracts.Quote) {
 			a.handleQuote(ctx, quote, prices)
 		})
@@ -38,7 +40,7 @@ func (a *AnalyzerService) Run(ctx context.Context) {
 			return
 		}
 
-		log.Printf("level=ERROR component=core event=quote_stream_failed err=%q", err)
+		slog.Error("quote_stream_failed", "component", "core", "retry_after", time.Second, "error", err)
 
 		select {
 		case <-ctx.Done():
@@ -54,12 +56,17 @@ func (a *AnalyzerService) handleQuote(ctx context.Context, quote contracts.Quote
 	}
 
 	now := time.Now().UTC()
+
+	slog.Debug("quote_processing", "component", "core", "coin", quote.Coin, "exchange", quote.Exchange, "age", now.Sub(quote.ReceivedAt), "invalidated", quote.Invalidated)
+
 	exchanges := prices[quote.Coin]
 	index := -1
 
 	for i, price := range exchanges {
 		if price.exchange == quote.Exchange {
 			if quote.ReceivedAt.Before(price.receivedAt) {
+				slog.Debug("quote_ignored", "component", "core", "coin", quote.Coin, "exchange", quote.Exchange, "reason", "older_update", "received_at", quote.ReceivedAt, "current_received_at", price.receivedAt)
+
 				return
 			}
 
@@ -76,8 +83,12 @@ func (a *AnalyzerService) handleQuote(ctx context.Context, quote contracts.Quote
 		} else {
 			exchanges[index] = price
 		}
+
+		slog.Debug("quote_accepted", "component", "core", "coin", quote.Coin, "exchange", quote.Exchange, "buy_cost", price.buyCost, "sell_proceeds", price.sellProceeds, "bid_size", price.bidSize, "ask_size", price.askSize)
 	} else if index >= 0 {
 		exchanges = append(exchanges[:index], exchanges[index+1:]...)
+
+		slog.Debug("quote_removed", "component", "core", "coin", quote.Coin, "exchange", quote.Exchange, "invalidated", quote.Invalidated)
 	}
 
 	current := exchanges[:0]
@@ -85,6 +96,8 @@ func (a *AnalyzerService) handleQuote(ctx context.Context, quote contracts.Quote
 	for _, price := range exchanges {
 		if a.fresh(price.receivedAt, now) {
 			current = append(current, price)
+		} else {
+			slog.Debug("cached_quote_expired", "component", "core", "coin", quote.Coin, "exchange", price.exchange, "age", now.Sub(price.receivedAt))
 		}
 	}
 
@@ -92,24 +105,26 @@ func (a *AnalyzerService) handleQuote(ctx context.Context, quote contracts.Quote
 
 	deal, exists := a.findDeal(quote.Coin, current, now)
 	if !exists {
+		slog.Debug("deal_not_found", "component", "core", "coin", quote.Coin, "available_exchanges", len(current))
+
 		return
 	}
+
+	startedAt := time.Now()
+
+	slog.Debug("deal_sending", "component", "core", "coin", deal.Coin, "buy_exchange", deal.BuyExchange, "sell_exchange", deal.SellExchange, "buy_usdt", deal.BuyAmountUSDT, "sell_usdt", deal.SellAmountUSDT, "profit_usdt", deal.ProfitUSDT, "detected_at", deal.DetectedAt)
 
 	if err := a.sender.Send(ctx, deal); err != nil {
 		if ctx.Err() != nil {
 			return
 		}
 
-		log.Printf("level=ERROR component=core event=deal_send_failed coin=%s err=%q", deal.Coin, err)
+		slog.Error("deal_send_failed", "component", "core", "coin", deal.Coin, "buy_exchange", deal.BuyExchange, "sell_exchange", deal.SellExchange, "duration", time.Since(startedAt), "error", err)
+
 		return
 	}
 
-	log.Printf("level=DEBUG component=core event=deal_sent coin=%s buy_exchange=%s sell_exchange=%s profit_usdt=%.8g",
-		deal.Coin,
-		deal.BuyExchange,
-		deal.SellExchange,
-		deal.ProfitUSDT,
-	)
+	slog.Debug("deal_sent", "component", "core", "coin", deal.Coin, "buy_exchange", deal.BuyExchange, "sell_exchange", deal.SellExchange, "profit_usdt", deal.ProfitUSDT, "duration", time.Since(startedAt))
 }
 
 func (a *AnalyzerService) findDeal(coin string, exchanges []marketQuote, now time.Time) (contracts.ProfitDealInfo, bool) {
@@ -119,11 +134,15 @@ func (a *AnalyzerService) findDeal(coin string, exchanges []marketQuote, now tim
 	for _, buy := range exchanges {
 		for _, sell := range exchanges {
 			if buy.exchange == sell.exchange || sell.sellProceeds <= buy.buyCost {
+				slog.Debug("deal_pair_skipped", "component", "core", "coin", coin, "buy_exchange", buy.exchange, "sell_exchange", sell.exchange, "reason", "same_exchange_or_unprofitable", "buy_cost", buy.buyCost, "sell_proceeds", sell.sellProceeds)
+
 				continue
 			}
 
 			quantity := math.Min(buy.askSize, sell.bidSize)
 			if quantity <= bestQuantity {
+				slog.Debug("deal_pair_skipped", "component", "core", "coin", coin, "buy_exchange", buy.exchange, "sell_exchange", sell.exchange, "reason", "quantity_not_better", "quantity", quantity, "best_quantity", bestQuantity)
+
 				continue
 			}
 
@@ -132,6 +151,8 @@ func (a *AnalyzerService) findDeal(coin string, exchanges []marketQuote, now tim
 			profit := sellAmount - buyAmount
 
 			if !positiveFinite(buyAmount) || !positiveFinite(sellAmount) || !positiveFinite(profit) {
+				slog.Debug("deal_pair_skipped", "component", "core", "coin", coin, "buy_exchange", buy.exchange, "sell_exchange", sell.exchange, "reason", "invalid_amounts", "buy_usdt", buyAmount, "sell_usdt", sellAmount, "profit_usdt", profit)
+
 				continue
 			}
 
@@ -145,6 +166,8 @@ func (a *AnalyzerService) findDeal(coin string, exchanges []marketQuote, now tim
 				DetectedAt:     now,
 			}
 			bestQuantity = quantity
+
+			slog.Debug("deal_candidate_selected", "component", "core", "coin", coin, "buy_exchange", buy.exchange, "sell_exchange", sell.exchange, "quantity", quantity, "buy_usdt", buyAmount, "sell_usdt", sellAmount, "profit_usdt", profit)
 		}
 	}
 
@@ -153,15 +176,21 @@ func (a *AnalyzerService) findDeal(coin string, exchanges []marketQuote, now tim
 
 func (a *AnalyzerService) parseQuote(quote contracts.Quote, now time.Time) (marketQuote, bool) {
 	if quote.Invalidated {
+		slog.Debug("quote_rejected", "component", "core", "coin", quote.Coin, "exchange", quote.Exchange, "reason", "invalidation")
+
 		return marketQuote{}, false
 	}
 
 	fee, exists := a.fees[quote.Exchange]
 	if !exists || math.IsNaN(fee) || math.IsInf(fee, 0) || fee < 0 || fee >= 1 || quote.Coin == "" {
+		slog.Debug("quote_rejected", "component", "core", "coin", quote.Coin, "exchange", quote.Exchange, "reason", "invalid_identity_or_fee", "fee_configured", exists, "fee", fee)
+
 		return marketQuote{}, false
 	}
 
 	if !a.fresh(quote.ReceivedAt, now) {
+		slog.Debug("quote_rejected", "component", "core", "coin", quote.Coin, "exchange", quote.Exchange, "reason", "invalid_age", "received_at", quote.ReceivedAt, "age", now.Sub(quote.ReceivedAt), "max_quote_age", a.maxQuoteAge)
+
 		return marketQuote{}, false
 	}
 
@@ -176,6 +205,15 @@ func (a *AnalyzerService) parseQuote(quote contracts.Quote, now time.Time) (mark
 	for i, value := range raw {
 		number, err := strconv.ParseFloat(value, 64)
 		if err != nil || !positiveFinite(number) {
+			fields := [4]string{
+				"bid_price",
+				"ask_price",
+				"bid_size",
+				"ask_size",
+			}
+
+			slog.Debug("quote_rejected", "component", "core", "coin", quote.Coin, "exchange", quote.Exchange, "reason", "invalid_number", "field", fields[i], "value", value, "error", err)
+
 			return marketQuote{}, false
 		}
 
@@ -183,6 +221,8 @@ func (a *AnalyzerService) parseQuote(quote contracts.Quote, now time.Time) (mark
 	}
 
 	if values[0] > values[1] {
+		slog.Debug("quote_rejected", "component", "core", "coin", quote.Coin, "exchange", quote.Exchange, "reason", "crossed_book", "bid_price", values[0], "ask_price", values[1])
+
 		return marketQuote{}, false
 	}
 
@@ -196,6 +236,8 @@ func (a *AnalyzerService) parseQuote(quote contracts.Quote, now time.Time) (mark
 	}
 
 	if !positiveFinite(price.buyCost) || !positiveFinite(price.sellProceeds) {
+		slog.Debug("quote_rejected", "component", "core", "coin", quote.Coin, "exchange", quote.Exchange, "reason", "invalid_fee_adjusted_prices", "buy_cost", price.buyCost, "sell_proceeds", price.sellProceeds, "fee", fee)
+
 		return marketQuote{}, false
 	}
 

@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"strings"
 
 	"github.com/fanoxiz/crypto-monitor/contracts"
@@ -33,7 +33,7 @@ func (a OKXAdapter) Stream(ctx context.Context, coins []string, save func(contra
 		"args": args,
 	}
 
-	return stream(ctx, a.URL, request, "ping", decodeOKX, save)
+	return stream(ctx, a.Name(), a.URL, request, "ping", decodeOKX, save)
 }
 
 func decodeOKX(raw []byte) (contracts.Quote, error) {
@@ -59,7 +59,7 @@ func decodeOKX(raw []byte) (contracts.Quote, error) {
 	}
 
 	if data.Event == "subscribe" {
-		log.Printf("level=INFO component=api event=subscription_confirmed exchange=OKX symbol=%s", data.Arg.Symbol)
+		slog.Info("subscription_confirmed", "component", "api", "exchange", "OKX", "symbol", data.Arg.Symbol)
 
 		return contracts.Quote{}, nil
 	}

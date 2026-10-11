@@ -4,7 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
+	"time"
 
 	"github.com/fanoxiz/crypto-monitor/contracts"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -15,6 +16,8 @@ type PostgresRepo struct {
 }
 
 func NewPostgresRepo(ctx context.Context, connString string) (*PostgresRepo, error) {
+	slog.Info("postgres_connecting", "component", "db")
+
 	pool, err := pgxpool.New(ctx, connString)
 	if err != nil {
 		return nil, fmt.Errorf("postgres connect: %w", err)
@@ -32,6 +35,8 @@ func NewPostgresRepo(ctx context.Context, connString string) (*PostgresRepo, err
 		return nil, fmt.Errorf("postgres init schema: %w", err)
 	}
 
+	slog.Info("postgres_schema_ready", "component", "db", "table", "profit_deals")
+
 	return &PostgresRepo{
 		pool: pool,
 	}, nil
@@ -39,27 +44,30 @@ func NewPostgresRepo(ctx context.Context, connString string) (*PostgresRepo, err
 
 func (r *PostgresRepo) Close() {
 	r.pool.Close()
+
+	slog.Info("postgres_closed", "component", "db")
 }
 
 func (r *PostgresRepo) SaveDeal(ctx context.Context, deal contracts.ProfitDealInfo) error {
+	startedAt := time.Now()
+
 	payload, err := json.Marshal(deal)
 	if err != nil {
+		slog.Debug("deal_payload_failed", "component", "db", "coin", deal.Coin, "error", err)
+
 		return err
 	}
 
+	slog.Debug("deal_insert_starting", "component", "db", "coin", deal.Coin, "payload_bytes", len(payload))
+
 	_, err = r.pool.Exec(ctx, "INSERT INTO profit_deals (payload) VALUES ($1::jsonb)", string(payload))
 	if err != nil {
+		slog.Debug("deal_insert_failed", "component", "db", "coin", deal.Coin, "duration", time.Since(startedAt), "error", err)
+
 		return fmt.Errorf("postgres save deal: %w", err)
 	}
 
-	log.Printf("level=INFO component=db event=deal_saved coin=%s buy_exchange=%s sell_exchange=%s buy_usdt=%.8g sell_usdt=%.8g profit_usdt=%.8g",
-		deal.Coin,
-		deal.BuyExchange,
-		deal.SellExchange,
-		deal.BuyAmountUSDT,
-		deal.SellAmountUSDT,
-		deal.ProfitUSDT,
-	)
+	slog.Info("deal_saved", "component", "db", "coin", deal.Coin, "buy_exchange", deal.BuyExchange, "sell_exchange", deal.SellExchange, "buy_usdt", deal.BuyAmountUSDT, "sell_usdt", deal.SellAmountUSDT, "profit_usdt", deal.ProfitUSDT, "duration", time.Since(startedAt))
 
 	return nil
 }

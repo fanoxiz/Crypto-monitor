@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"strings"
 
 	"github.com/fanoxiz/crypto-monitor/contracts"
@@ -30,7 +30,7 @@ func (a BybitAdapter) Stream(ctx context.Context, coins []string, save func(cont
 		"args": topics,
 	}
 
-	return stream(ctx, a.URL, request, `{"op":"ping"}`, decodeBybit, save)
+	return stream(ctx, a.Name(), a.URL, request, `{"op":"ping"}`, decodeBybit, save)
 }
 
 func decodeBybit(raw []byte) (contracts.Quote, error) {
@@ -55,7 +55,7 @@ func decodeBybit(raw []byte) (contracts.Quote, error) {
 	}
 
 	if data.Operation == "subscribe" && data.Success != nil {
-		log.Printf("level=INFO component=api event=subscription_confirmed exchange=Bybit request_id=%q", data.RequestID)
+		slog.Info("subscription_confirmed", "component", "api", "exchange", "Bybit", "request_id", data.RequestID)
 
 		return contracts.Quote{}, nil
 	}

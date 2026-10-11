@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -11,18 +11,24 @@ import (
 	"github.com/fanoxiz/crypto-monitor/analyzer/adapters/sender"
 	"github.com/fanoxiz/crypto-monitor/analyzer/config"
 	"github.com/fanoxiz/crypto-monitor/analyzer/core"
+	"github.com/fanoxiz/crypto-monitor/internal/logging"
 	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
 func main() {
-	log.SetPrefix("service=analyzer ")
-	log.SetFlags(log.LstdFlags | log.LUTC)
+	if err := logging.Configure("analyzer"); err != nil {
+		slog.Error("logging_configuration_failed", "component", "main", "error", err)
+		os.Exit(1)
+	}
 
 	if err := run(); err != nil {
-		log.Fatalf("level=ERROR component=main event=startup_failed err=%q", err)
+		slog.Error("startup_failed", "component", "main", "error", err)
+		os.Exit(1)
 	}
+
+	slog.Info("service_stopped", "component", "main")
 }
 
 func run() error {
@@ -30,6 +36,8 @@ func run() error {
 	if err != nil {
 		return err
 	}
+
+	slog.Info("configuration_loaded", "component", "main", "coins", cfg.TrackedCoins, "exchanges", cfg.Exchanges, "max_quote_age", cfg.MaxQuoteAge, "fees", cfg.Fees)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -43,11 +51,15 @@ func run() error {
 		return err
 	}
 
+	slog.Info("redis_connected", "component", "main")
+
 	conn, err := grpc.NewClient(cfg.ExecutorGRPCAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return err
 	}
 	defer conn.Close()
+
+	slog.Info("executor_client_created", "component", "main")
 
 	store := cache.NewRedisQuoteStore(client, cfg.TrackedCoins, cfg.Exchanges)
 	dealSender := sender.NewGRPCSender(conn)

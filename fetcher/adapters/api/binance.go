@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"strings"
 
 	"github.com/fanoxiz/crypto-monitor/contracts"
@@ -31,7 +31,7 @@ func (a BinanceAdapter) Stream(ctx context.Context, coins []string, save func(co
 		"id":     1,
 	}
 
-	return stream(ctx, a.URL, request, "", decodeBinance, save)
+	return stream(ctx, a.Name(), a.URL, request, "", decodeBinance, save)
 }
 
 func decodeBinance(raw []byte) (contracts.Quote, error) {
@@ -56,7 +56,7 @@ func decodeBinance(raw []byte) (contracts.Quote, error) {
 	}
 
 	if string(data.Result) == "null" {
-		log.Printf("level=INFO component=api event=subscription_confirmed exchange=Binance request_id=%s", data.ID)
+		slog.Info("subscription_confirmed", "component", "api", "exchange", "Binance", "request_id", string(data.ID))
 
 		return contracts.Quote{}, nil
 	}

@@ -2,7 +2,7 @@ package core
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -33,6 +33,8 @@ func (s *FetcherService) Run(ctx context.Context, coins []string) {
 	onQuote := func(quote contracts.Quote) error {
 		buffer.put(quote)
 
+		slog.Debug("quote_buffered", "component", "core", "coin", quote.Coin, "exchange", quote.Exchange, "invalidated", quote.Invalidated, "received_at", quote.ReceivedAt)
+
 		return ctx.Err()
 	}
 
@@ -58,20 +60,26 @@ func (s *FetcherService) runWriter(ctx context.Context, buffer *quoteBuffer) {
 			continue
 		}
 
+		startedAt := time.Now()
+
 		if err := s.store.SaveBatch(ctx, quotes); err != nil {
 			if ctx.Err() != nil {
 				return
 			}
 
-			log.Printf("level=ERROR component=core event=redis_write_failed err=%q", err)
+			slog.Error("redis_write_failed", "component", "core", "batch_size", len(quotes), "duration", time.Since(startedAt), "error", err)
 
 			buffer.restore(quotes)
+
+			slog.Debug("quote_batch_restored", "component", "core", "batch_size", len(quotes), "retry_after", 100*time.Millisecond)
 
 			select {
 			case <-ctx.Done():
 				return
 			case <-time.After(100 * time.Millisecond):
 			}
+		} else {
+			slog.Debug("quote_batch_delivered", "component", "core", "batch_size", len(quotes), "duration", time.Since(startedAt))
 		}
 	}
 }
@@ -80,29 +88,35 @@ func (s *FetcherService) runExchange(ctx context.Context, exchange Exchange, coi
 	failures := 0
 
 	for ctx.Err() == nil {
-		log.Printf("level=INFO component=core event=stream_starting exchange=%s", exchange.Name())
+		slog.Info("stream_starting", "component", "core", "exchange", exchange.Name(), "coins", coins, "failures", failures)
 
 		err := exchange.Stream(ctx, coins, func(quote contracts.Quote) error {
+			if failures > 0 {
+				slog.Info("exchange_recovered", "component", "core", "exchange", exchange.Name(), "previous_failures", failures)
+			}
+
 			failures = 0
 
 			return onQuote(quote)
 		})
 
 		if ctx.Err() != nil {
+			slog.Info("stream_stopped", "component", "core", "exchange", exchange.Name(), "reason", "context_cancelled")
+
 			return
 		}
 
 		failures++
 
 		if failures >= 5 {
-			log.Printf("level=ERROR component=core event=exchange_disabled exchange=%s failures=%d err=%q", exchange.Name(), failures, err)
+			slog.Error("exchange_disabled", "component", "core", "exchange", exchange.Name(), "failures", failures, "error", err)
 
 			return
 		}
 
 		retryAfter := time.Duration(failures) * 500 * time.Millisecond
 
-		log.Printf("level=ERROR component=core event=stream_failed exchange=%s failures=%d retry_after=%s err=%q", exchange.Name(), failures, retryAfter, err)
+		slog.Warn("stream_failed", "component", "core", "exchange", exchange.Name(), "failures", failures, "retry_after", retryAfter, "error", err)
 
 		select {
 		case <-ctx.Done():

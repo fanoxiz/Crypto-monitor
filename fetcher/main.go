@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -11,16 +11,22 @@ import (
 	"github.com/fanoxiz/crypto-monitor/fetcher/adapters/cache"
 	"github.com/fanoxiz/crypto-monitor/fetcher/config"
 	"github.com/fanoxiz/crypto-monitor/fetcher/core"
+	"github.com/fanoxiz/crypto-monitor/internal/logging"
 	"github.com/redis/go-redis/v9"
 )
 
 func main() {
-	log.SetPrefix("service=fetcher ")
-	log.SetFlags(log.LstdFlags | log.LUTC)
+	if err := logging.Configure("fetcher"); err != nil {
+		slog.Error("logging_configuration_failed", "component", "main", "error", err)
+		os.Exit(1)
+	}
 
 	if err := run(); err != nil {
-		log.Fatalf("level=ERROR component=main event=startup_failed err=%q", err)
+		slog.Error("startup_failed", "component", "main", "error", err)
+		os.Exit(1)
 	}
+
+	slog.Info("service_stopped", "component", "main")
 }
 
 func run() error {
@@ -28,6 +34,8 @@ func run() error {
 	if err != nil {
 		return err
 	}
+
+	slog.Info("configuration_loaded", "component", "main", "coins", cfg.TrackedCoins, "price_ttl", cfg.PriceTTL)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -40,6 +48,8 @@ func run() error {
 	if err := client.Ping(ctx).Err(); err != nil {
 		return err
 	}
+
+	slog.Info("redis_connected", "component", "main")
 
 	exchanges := []core.Exchange{
 		api.BinanceAdapter{

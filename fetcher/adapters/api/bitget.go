@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"strings"
 
 	"github.com/fanoxiz/crypto-monitor/contracts"
@@ -34,7 +34,7 @@ func (a BitgetAdapter) Stream(ctx context.Context, coins []string, save func(con
 		"args": args,
 	}
 
-	return stream(ctx, a.URL, request, "ping", decodeBitget, save)
+	return stream(ctx, a.Name(), a.URL, request, "ping", decodeBitget, save)
 }
 
 func decodeBitget(raw []byte) (contracts.Quote, error) {
@@ -60,7 +60,7 @@ func decodeBitget(raw []byte) (contracts.Quote, error) {
 	}
 
 	if data.Event == "subscribe" {
-		log.Printf("level=INFO component=api event=subscription_confirmed exchange=Bitget symbol=%s", data.Arg.Symbol)
+		slog.Info("subscription_confirmed", "component", "api", "exchange", "Bitget", "symbol", data.Arg.Symbol)
 
 		return contracts.Quote{}, nil
 	}

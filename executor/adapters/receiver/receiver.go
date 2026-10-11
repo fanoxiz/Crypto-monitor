@@ -3,8 +3,9 @@ package receiver
 import (
 	"context"
 	"errors"
-	"log"
+	"log/slog"
 	"net"
+	"time"
 
 	"github.com/fanoxiz/crypto-monitor/contracts"
 	"github.com/fanoxiz/crypto-monitor/contracts/grpcpb"
@@ -41,9 +42,12 @@ func (r *GRPCReceiver) Start(ctx context.Context, port string) error {
 	stop := context.AfterFunc(ctx, server.GracefulStop)
 	defer stop()
 
-	log.Printf("level=INFO component=receiver event=server_started port=%s", port)
+	slog.Info("server_started", "component", "receiver", "port", port)
 
 	err = server.Serve(listener)
+
+	slog.Info("server_stopped", "component", "receiver", "error", err)
+
 	if errors.Is(err, grpc.ErrServerStopped) {
 		return nil
 	}
@@ -52,11 +56,17 @@ func (r *GRPCReceiver) Start(ctx context.Context, port string) error {
 }
 
 func (r *GRPCReceiver) ProcessDeal(ctx context.Context, msg *grpcpb.ProfitDealInfo) (*emptypb.Empty, error) {
+	startedAt := time.Now()
+
 	if msg == nil || msg.GetDetectedAt() == nil {
+		slog.Warn("deal_rejected", "component", "receiver", "reason", "missing_detection_time")
+
 		return nil, status.Error(codes.InvalidArgument, "detection time is required")
 	}
 
 	if err := msg.GetDetectedAt().CheckValid(); err != nil {
+		slog.Warn("deal_rejected", "component", "receiver", "reason", "invalid_detection_time", "error", err)
+
 		return nil, status.Error(codes.InvalidArgument, "invalid detection time")
 	}
 
@@ -70,19 +80,27 @@ func (r *GRPCReceiver) ProcessDeal(ctx context.Context, msg *grpcpb.ProfitDealIn
 		DetectedAt:     msg.GetDetectedAt().AsTime(),
 	}
 
+	slog.Debug("deal_received", "component", "receiver", "coin", deal.Coin, "buy_exchange", deal.BuyExchange, "sell_exchange", deal.SellExchange, "buy_usdt", deal.BuyAmountUSDT, "sell_usdt", deal.SellAmountUSDT, "profit_usdt", deal.ProfitUSDT, "detected_at", deal.DetectedAt)
+
 	if err := r.executor.ProcessDeal(ctx, deal); err != nil {
 		if errors.Is(err, core.ErrInvalidDeal) {
+			slog.Warn("deal_rejected", "component", "receiver", "coin", deal.Coin, "reason", "invalid_deal", "error", err)
+
 			return nil, status.Error(codes.InvalidArgument, err.Error())
 		}
 
 		if ctx.Err() != nil {
+			slog.Debug("deal_processing_cancelled", "component", "receiver", "coin", deal.Coin, "duration", time.Since(startedAt), "error", ctx.Err())
+
 			return nil, status.FromContextError(ctx.Err()).Err()
 		}
 
-		log.Printf("level=ERROR component=receiver event=deal_save_failed err=%q", err)
+		slog.Error("deal_save_failed", "component", "receiver", "coin", deal.Coin, "duration", time.Since(startedAt), "error", err)
 
 		return nil, status.Error(codes.Internal, "failed to save deal")
 	}
+
+	slog.Debug("deal_processed", "component", "receiver", "coin", deal.Coin, "duration", time.Since(startedAt))
 
 	return &emptypb.Empty{}, nil
 }
