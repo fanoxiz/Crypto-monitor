@@ -13,6 +13,7 @@ type streamMessage struct {
 	dataCoin      string
 	confirmedCoin string
 	confirmedAll  bool
+	heartbeat     bool
 }
 
 type instrumentStatus struct {

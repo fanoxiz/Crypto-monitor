@@ -8,7 +8,7 @@ import (
 
 type Exchange interface {
 	Name() string
-	Stream(ctx context.Context, coins []string, save func(contracts.Quote) error) error
+	Stream(ctx context.Context, coins []string, save func(contracts.Quote) error, onHealthy func()) error
 }
 
 type QuoteStore interface {

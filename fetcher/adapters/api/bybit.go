@@ -17,7 +17,7 @@ func (BybitAdapter) Name() string {
 	return "Bybit"
 }
 
-func (a BybitAdapter) Stream(ctx context.Context, coins []string, save func(contracts.Quote) error) error {
+func (a BybitAdapter) Stream(ctx context.Context, coins []string, save func(contracts.Quote) error, onHealthy func()) error {
 	topics := make([]string, 0, len(coins))
 
 	for _, coin := range coins {
@@ -30,7 +30,7 @@ func (a BybitAdapter) Stream(ctx context.Context, coins []string, save func(cont
 		"req_id": "quotes",
 	}
 
-	return stream(ctx, a.Name(), a.URL, coins, request, `{"op":"ping"}`, decodeBybit, save)
+	return stream(ctx, a.Name(), a.URL, coins, request, `{"op":"ping","req_id":"heartbeat"}`, decodeBybit, save, onHealthy)
 }
 
 func decodeBybit(raw []byte) (streamMessage, error) {
@@ -53,7 +53,13 @@ func decodeBybit(raw []byte) (streamMessage, error) {
 	}
 
 	if data.Success != nil && !*data.Success {
-		return streamMessage{}, fmt.Errorf("Bybit request failed: operation=%s request_id=%s message=%s", data.Operation, data.RequestID, data.Message)
+		return streamMessage{}, fmt.Errorf("%w: Bybit request failed: operation=%s request_id=%s message=%s", errRequestRejected, data.Operation, data.RequestID, data.Message)
+	}
+
+	if data.Operation == "ping" && data.RequestID == heartbeatPayload && data.Message == "pong" && data.Success != nil {
+		return streamMessage{
+			heartbeat: true,
+		}, nil
 	}
 
 	if data.Operation == "subscribe" && data.Success != nil {

@@ -90,14 +90,12 @@ func (s *FetcherService) runExchange(ctx context.Context, exchange Exchange, coi
 	for ctx.Err() == nil {
 		slog.Info("stream_starting", "component", "core", "exchange", exchange.Name(), "coins", coins, "failures", failures)
 
-		err := exchange.Stream(ctx, coins, func(quote contracts.Quote) error {
+		err := exchange.Stream(ctx, coins, onQuote, func() {
 			if failures > 0 {
 				slog.Info("exchange_recovered", "component", "core", "exchange", exchange.Name(), "previous_failures", failures)
 			}
 
 			failures = 0
-
-			return onQuote(quote)
 		})
 
 		if ctx.Err() != nil {

@@ -17,7 +17,7 @@ func (BitgetAdapter) Name() string {
 	return "Bitget"
 }
 
-func (a BitgetAdapter) Stream(ctx context.Context, coins []string, save func(contracts.Quote) error) error {
+func (a BitgetAdapter) Stream(ctx context.Context, coins []string, save func(contracts.Quote) error, onHealthy func()) error {
 	args := make([]map[string]string, 0, len(coins))
 
 	for _, coin := range coins {
@@ -33,7 +33,7 @@ func (a BitgetAdapter) Stream(ctx context.Context, coins []string, save func(con
 		"args": args,
 	}
 
-	return stream(ctx, a.Name(), a.URL, coins, request, "ping", decodeBitget, save)
+	return stream(ctx, a.Name(), a.URL, coins, request, "ping", decodeBitget, save, onHealthy)
 }
 
 func decodeBitget(raw []byte) (streamMessage, error) {
@@ -59,7 +59,7 @@ func decodeBitget(raw []byte) (streamMessage, error) {
 	}
 
 	if data.Event == "error" {
-		return streamMessage{}, fmt.Errorf("Bitget subscription failed: symbol=%s code=%s message=%s", data.Arg.Symbol, data.Code, data.Message)
+		return streamMessage{}, fmt.Errorf("%w: Bitget subscription failed: symbol=%s code=%s message=%s", errRequestRejected, data.Arg.Symbol, data.Code, data.Message)
 	}
 
 	if data.Event == "subscribe" {

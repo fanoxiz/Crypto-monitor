@@ -17,7 +17,7 @@ func (OKXAdapter) Name() string {
 	return "OKX"
 }
 
-func (a OKXAdapter) Stream(ctx context.Context, coins []string, save func(contracts.Quote) error) error {
+func (a OKXAdapter) Stream(ctx context.Context, coins []string, save func(contracts.Quote) error, onHealthy func()) error {
 	args := make([]map[string]string, 0, len(coins))
 
 	for _, coin := range coins {
@@ -32,7 +32,7 @@ func (a OKXAdapter) Stream(ctx context.Context, coins []string, save func(contra
 		"args": args,
 	}
 
-	return stream(ctx, a.Name(), a.URL, coins, request, "ping", decodeOKX, save)
+	return stream(ctx, a.Name(), a.URL, coins, request, "ping", decodeOKX, save, onHealthy)
 }
 
 func decodeOKX(raw []byte) (streamMessage, error) {
@@ -56,7 +56,7 @@ func decodeOKX(raw []byte) (streamMessage, error) {
 	}
 
 	if data.Event == "error" {
-		return streamMessage{}, fmt.Errorf("OKX subscription failed: symbol=%s code=%s message=%s", data.Arg.Symbol, data.Code, data.Message)
+		return streamMessage{}, fmt.Errorf("%w: OKX subscription failed: symbol=%s code=%s message=%s", errRequestRejected, data.Arg.Symbol, data.Code, data.Message)
 	}
 
 	if data.Event == "subscribe" {

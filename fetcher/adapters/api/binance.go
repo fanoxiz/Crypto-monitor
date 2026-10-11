@@ -17,7 +17,7 @@ func (BinanceAdapter) Name() string {
 	return "Binance"
 }
 
-func (a BinanceAdapter) Stream(ctx context.Context, coins []string, save func(contracts.Quote) error) error {
+func (a BinanceAdapter) Stream(ctx context.Context, coins []string, save func(contracts.Quote) error, onHealthy func()) error {
 	topics := make([]string, 0, len(coins))
 
 	for _, coin := range coins {
@@ -30,7 +30,7 @@ func (a BinanceAdapter) Stream(ctx context.Context, coins []string, save func(co
 		"id":     1,
 	}
 
-	return stream(ctx, a.Name(), a.URL, coins, request, "", decodeBinance, save)
+	return stream(ctx, a.Name(), a.URL, coins, request, "", decodeBinance, save, onHealthy)
 }
 
 func decodeBinance(raw []byte) (streamMessage, error) {
@@ -51,7 +51,7 @@ func decodeBinance(raw []byte) (streamMessage, error) {
 	}
 
 	if data.Code != nil {
-		return streamMessage{}, fmt.Errorf("Binance subscription failed: code=%d message=%s", *data.Code, data.Message)
+		return streamMessage{}, fmt.Errorf("%w: Binance subscription failed: code=%d message=%s", errRequestRejected, *data.Code, data.Message)
 	}
 
 	if string(data.Result) == "null" {
