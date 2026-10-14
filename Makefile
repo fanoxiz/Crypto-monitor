@@ -1,33 +1,36 @@
 BIN_DIR ?= bin
 GEN_PROTO_DIR ?= /usr/include
-GO ?= go
-PROTOC ?= protoc
-COMPOSE ?= docker compose
+TEST_TIMEOUT ?= 120s
+GO_DIRS := analyzer contracts executor fetcher internal tests
 
-.PHONY: all build format tidy check test gen-proto up reup down logs db-clean dck-clean tools
-
-all: build
+.PHONY: build clean format check \
+	test test-integration \
+	gen-proto tools up reup down logs db-clean
 
 build:
 	mkdir -p "$(BIN_DIR)"
-	$(GO) build -o "$(BIN_DIR)/fetcher" ./fetcher
-	$(GO) build -o "$(BIN_DIR)/analyzer" ./analyzer
-	$(GO) build -o "$(BIN_DIR)/executor" ./executor
+	go build -o "$(BIN_DIR)/fetcher" ./fetcher
+	go build -o "$(BIN_DIR)/analyzer" ./analyzer
+	go build -o "$(BIN_DIR)/executor" ./executor
+
+clean:
+	rm -f "$(BIN_DIR)/fetcher" "$(BIN_DIR)/analyzer" "$(BIN_DIR)/executor"
 
 format:
-	gofmt -w analyzer contracts executor fetcher
-
-tidy:
-	$(GO) mod tidy
+	gofmt -w $(GO_DIRS)
+	go mod tidy
 
 check:
-	$(GO) vet ./...
+	go vet ./...
 
 test:
-	$(GO) test ./...
+	go test -count=1 -timeout="$(TEST_TIMEOUT)" ./...
+
+test-integration:
+	@TEST_TIMEOUT="$(TEST_TIMEOUT)" bash tests/run.sh
 
 gen-proto:
-	$(PROTOC) \
+	protoc \
 		--proto_path=. \
 		--proto_path="$(GEN_PROTO_DIR)" \
 		--go_out=. \
@@ -37,25 +40,22 @@ gen-proto:
 		contracts/service.proto
 
 up:
-	$(COMPOSE) up --build
+	docker compose up --build
 
 reup:
-	make down
-	make up
+	$(MAKE) down
+	$(MAKE) up
 
 down:
-	$(COMPOSE) down
+	docker compose down
 
 logs:
-	$(COMPOSE) logs -f fetcher analyzer executor
+	docker compose logs -f fetcher analyzer executor
 
 db-clean:
-	$(COMPOSE) down -v
-
-dck-clean:
-	$(COMPOSE) down -v --remove-orphans --rmi local
+	docker compose down -v
 
 tools:
-	command -v $(PROTOC)
-	$(GO) install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
-	$(GO) install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.6.2
+	command -v protoc
+	go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
+	go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.6.2

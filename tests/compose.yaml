@@ -1,0 +1,24 @@
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "127.0.0.1::6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: test_user
+      POSTGRES_PASSWORD: test_password
+      POSTGRES_DB: test_db
+    ports:
+      - "127.0.0.1::5432"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "test_user", "-d", "test_db"]
+      interval: 1s
+      timeout: 3s
+      retries: 30

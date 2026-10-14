@@ -20,7 +20,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "crypto_user", "-d", "crypto_db"]
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "crypto_user", "-d", "crypto_db"]
       interval: 2s
       timeout: 5s
       retries: 5
