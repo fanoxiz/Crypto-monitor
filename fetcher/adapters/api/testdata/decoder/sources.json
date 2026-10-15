@@ -1,0 +1,71 @@
+[
+  {
+    "file": "binance.json",
+    "exchange": "Binance",
+    "source": "official_response_example",
+    "source_url": "https://developers.binance.com/en/docs/catalog/core-trading-spot-trading/api/ws-streams/~#individual-symbol-book-ticker-streams",
+    "section": "Individual Symbol Book Ticker Streams / Example Responses / Raw Stream",
+    "retrieved_on": "2026-10-16",
+    "protocol": "Spot JSON WebSocket, bookTicker",
+    "transformations": [
+      "Removed documentation formatting; retained every payload field and value."
+    ],
+    "sha256": "b41e650287c3fe6552f56d73d016bd344ada6068254deb15ae8f83e3201b808a"
+  },
+  {
+    "exchange": "Bybit",
+    "source": "recorded_public_websocket",
+    "endpoint": "wss://stream.bybit.com/v5/public/spot",
+    "subscription": {
+      "op": "subscribe",
+      "args": [
+        "orderbook.1.BTCUSDT"
+      ],
+      "req_id": "fixture-capture"
+    },
+    "received_at": "2026-10-15T21:52:34.521200+00:00",
+    "file": "bybit.json",
+    "transformations": [],
+    "protocol": "V5 public spot, orderbook.1, snapshot",
+    "sha256": "73805f9ec7f234191f8ed8c6e02066438b1df89bc81558debe8a225fb83aead6"
+  },
+  {
+    "exchange": "Bitget",
+    "source": "recorded_public_websocket",
+    "endpoint": "wss://ws.bitget.com/v3/ws/public",
+    "subscription": {
+      "op": "subscribe",
+      "args": [
+        {
+          "instType": "spot",
+          "topic": "books1",
+          "symbol": "BTCUSDT"
+        }
+      ]
+    },
+    "received_at": "2026-10-15T21:52:35.297870+00:00",
+    "file": "bitget.json",
+    "transformations": [],
+    "protocol": "V3 public spot, books1, snapshot",
+    "sha256": "8bff3c70dbe343942595343e95d7608e0c5410ac5b45c43478d305d42dc4a4b2"
+  },
+  {
+    "exchange": "OKX",
+    "source": "recorded_public_websocket",
+    "endpoint": "wss://ws.okx.com:8443/ws/v5/public",
+    "subscription": {
+      "op": "subscribe",
+      "args": [
+        {
+          "channel": "bbo-tbt",
+          "instId": "BTC-USDT"
+        }
+      ]
+    },
+    "received_at": "2026-10-15T21:52:35.013739+00:00",
+    "file": "okx.json",
+    "transformations": [],
+    "protocol": "V5 public spot, bbo-tbt",
+    "sha256": "284f9a72b0180fdc229806bb9dc330abd84d1f20537b6055e1a7127a3388fcfe"
+  }
+]
