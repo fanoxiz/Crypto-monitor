@@ -168,7 +168,7 @@ func TestSnapshotContractRejectsKeyPayloadMismatch(t *testing.T) {
 	}
 
 	store := NewRedisQuoteStore(client, []string{"ETH", "BTC"}, []string{"Bybit", "OKX"})
-	quotes, err := store.snapshot(ctx)
+	quotes, err := store.snapshot(ctx, `{"snapshot":"contract"}`)
 	if err != nil {
 		t.Fatal(err)
 	}

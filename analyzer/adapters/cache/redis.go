@@ -2,13 +2,17 @@ package cache
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"time"
 
 	"github.com/fanoxiz/crypto-monitor/contracts"
 	"github.com/redis/go-redis/v9"
 )
+
+const snapshotTimeout = 5 * time.Second
 
 type RedisQuoteStore struct {
 	client  *redis.Client
@@ -50,6 +54,21 @@ func (s *RedisQuoteStore) Stream(ctx context.Context, handle func(contracts.Quot
 	})
 	defer stop()
 
+	quotes, err := s.loadSnapshot(ctx, pubsub)
+	if err != nil {
+		return err
+	}
+
+	slog.Info("quotes_subscribed", "component", "cache", "channel", contracts.QuotesChannel, "snapshot_size", len(quotes))
+
+	for _, quote := range quotes {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+
+		handle(quote)
+	}
+
 	for {
 		message, err := pubsub.Receive(ctx)
 		if err != nil {
@@ -60,23 +79,8 @@ func (s *RedisQuoteStore) Stream(ctx context.Context, handle func(contracts.Quot
 
 		switch message := message.(type) {
 		case *redis.Subscription:
-			if message.Kind != "subscribe" || message.Channel != contracts.QuotesChannel {
-				continue
-			}
-
-			quotes, err := s.snapshot(ctx)
-			if err != nil {
-				return err
-			}
-
-			slog.Info("quotes_subscribed", "component", "cache", "channel", message.Channel, "snapshot_size", len(quotes))
-
-			for _, quote := range quotes {
-				if ctx.Err() != nil {
-					return ctx.Err()
-				}
-
-				handle(quote)
+			if message.Kind == "subscribe" && message.Channel == contracts.QuotesChannel {
+				return errors.New("quote subscription reconnected")
 			}
 		case *redis.Message:
 			quote, valid := s.decode(message.Payload)
@@ -89,16 +93,70 @@ func (s *RedisQuoteStore) Stream(ctx context.Context, handle func(contracts.Quot
 	}
 }
 
-func (s *RedisQuoteStore) snapshot(ctx context.Context) ([]contracts.Quote, error) {
-	startedAt := time.Now()
+func (s *RedisQuoteStore) loadSnapshot(ctx context.Context, pubsub *redis.PubSub) ([]contracts.Quote, error) {
+	ctx, cancel := context.WithTimeout(ctx, snapshotTimeout)
+	defer cancel()
 
-	values, err := s.client.MGet(ctx, s.keys...).Result()
+	stop := context.AfterFunc(ctx, func() {
+		pubsub.Close()
+	})
+	defer stop()
+
+	marker := `{"snapshot":"` + rand.Text() + `"}`
+	var quotes []contracts.Quote
+	subscribed := false
+
+	for {
+		message, err := pubsub.Receive(ctx)
+		if err != nil {
+			if ctx.Err() != nil {
+				return nil, ctx.Err()
+			}
+
+			return nil, err
+		}
+
+		switch message := message.(type) {
+		case *redis.Subscription:
+			if message.Kind != "subscribe" || message.Channel != contracts.QuotesChannel {
+				continue
+			}
+
+			if subscribed {
+				return nil, errors.New("quote subscription reconnected during snapshot")
+			}
+
+			quotes, err = s.snapshot(ctx, marker)
+			if err != nil {
+				return nil, err
+			}
+
+			subscribed = true
+		case *redis.Message:
+			if subscribed && message.Channel == contracts.QuotesChannel && message.Payload == marker {
+				return quotes, ctx.Err()
+			}
+		}
+	}
+}
+
+func (s *RedisQuoteStore) snapshot(ctx context.Context, marker string) ([]contracts.Quote, error) {
+	startedAt := time.Now()
+	var result *redis.SliceCmd
+
+	_, err := s.client.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
+		result = pipe.MGet(ctx, s.keys...)
+		pipe.Publish(ctx, contracts.QuotesChannel, marker)
+
+		return nil
+	})
 	if err != nil {
 		slog.Debug("quote_snapshot_failed", "component", "cache", "duration", time.Since(startedAt), "error", err)
 
 		return nil, err
 	}
 
+	values := result.Val()
 	quotes := make([]contracts.Quote, 0, len(values))
 
 	for i, value := range values {

@@ -10,6 +10,15 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+const saveQuoteScript = `
+if ARGV[1] == "DEL" then
+	redis.call("DEL", KEYS[1])
+else
+	redis.call("SET", KEYS[1], ARGV[2], "PXAT", ARGV[3])
+end
+return redis.call("PUBLISH", ARGV[4], ARGV[2])
+`
+
 type RedisQuoteStore struct {
 	client *redis.Client
 	ttl    time.Duration
@@ -70,18 +79,18 @@ func (s *RedisQuoteStore) SaveBatch(ctx context.Context, quotes []contracts.Quot
 			}
 
 			key := contracts.QuoteKey(quote.Coin, quote.Exchange)
+			operation := "SET"
 
 			if quote.Invalidated {
-				pipe.Del(ctx, key)
+				operation = "DEL"
 				invalidated++
 				slog.Debug("quote_delete_queued", "component", "cache", "coin", quote.Coin, "exchange", quote.Exchange, "key", key)
 			} else {
-				pipe.Do(ctx, "SET", key, data, "PXAT", quote.ExpiresAt.UnixMilli())
 				saved++
 				slog.Debug("quote_write_queued", "component", "cache", "coin", quote.Coin, "exchange", quote.Exchange, "key", key, "source_at", quote.SourceAt, "expires_at", quote.ExpiresAt, "remaining_ttl", ttl)
 			}
 
-			pipe.Publish(ctx, contracts.QuotesChannel, data)
+			pipe.Eval(ctx, saveQuoteScript, []string{key}, operation, data, quote.ExpiresAt.UnixMilli(), contracts.QuotesChannel)
 		}
 
 		return nil
