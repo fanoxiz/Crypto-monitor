@@ -63,6 +63,52 @@ func TestWaitHeartbeatIgnoresStaleResponse(t *testing.T) {
 	})
 }
 
+func TestWaitHeartbeatStaleResponseDoesNotExtendTimeout(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		startedAt := time.Now()
+		received := make(chan time.Time, 1)
+		done := make(chan error, 1)
+
+		go func() {
+			done <- waitHeartbeat(ctx, received, startedAt)
+		}()
+
+		synctest.Wait()
+		time.Sleep(4 * time.Second)
+		received <- startedAt.Add(-time.Nanosecond)
+		synctest.Wait()
+
+		select {
+		case err := <-done:
+			t.Fatalf("stale response ended heartbeat wait: %v", err)
+		default:
+		}
+
+		time.Sleep(time.Second - time.Nanosecond)
+		synctest.Wait()
+
+		select {
+		case err := <-done:
+			t.Fatalf("heartbeat wait ended before its original deadline: %v", err)
+		default:
+		}
+
+		time.Sleep(time.Nanosecond)
+		synctest.Wait()
+
+		select {
+		case err := <-done:
+			if err == nil || ctx.Err() != nil || time.Since(startedAt) != 5*time.Second {
+				t.Fatalf("heartbeat wait result = %v after %s, context error = %v", err, time.Since(startedAt), ctx.Err())
+			}
+		default:
+			t.Fatal("stale response extended the original five-second heartbeat deadline")
+		}
+	})
+}
+
 func TestWaitHeartbeatRejectsTimestampAfterDeadline(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		sentAt := time.Now()

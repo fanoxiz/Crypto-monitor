@@ -20,7 +20,7 @@ type heartbeatLoopObservation struct {
 	healthy  int
 }
 
-func observeHeartbeatLoop(ctx context.Context, conn *websocket.Conn, received chan time.Time) *heartbeatLoopObservation {
+func observeHeartbeatLoop(ctx context.Context, conn *websocket.Conn, packet string, received chan time.Time) *heartbeatLoopObservation {
 	observation := &heartbeatLoopObservation{
 		received: received,
 		failed:   make(chan error, 1),
@@ -31,7 +31,7 @@ func observeHeartbeatLoop(ctx context.Context, conn *websocket.Conn, received ch
 	go func() {
 		defer close(observation.done)
 
-		runHeartbeat(ctx, conn, logger, "ping", received, observation.failed, func() {
+		runHeartbeat(ctx, conn, logger, packet, received, observation.failed, func() {
 			observation.healthy++
 		})
 	}()
@@ -63,7 +63,7 @@ func TestHeartbeatLoopPolicyAndQueuedReply(t *testing.T) {
 		startedAt := time.Now()
 		received := make(chan time.Time, 1)
 		received <- startedAt
-		observation := observeHeartbeatLoop(ctx, client, received)
+		observation := observeHeartbeatLoop(ctx, client, "ping", received)
 
 		synctest.Wait()
 		first := takeHeartbeatPacket(t, packets)
@@ -128,7 +128,7 @@ func TestHeartbeatLoopTimeoutAndLateReply(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		received := make(chan time.Time, 1)
-		observation := observeHeartbeatLoop(ctx, client, received)
+		observation := observeHeartbeatLoop(ctx, client, "ping", received)
 
 		synctest.Wait()
 		takeHeartbeatPacket(t, packets)
@@ -175,7 +175,7 @@ func TestHeartbeatLoopWriteFailure(t *testing.T) {
 		client.Close()
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		observation := observeHeartbeatLoop(ctx, client, make(chan time.Time, 1))
+		observation := observeHeartbeatLoop(ctx, client, "ping", make(chan time.Time, 1))
 
 		synctest.Wait()
 		assertHeartbeatLoopStopped(t, observation, 0)
@@ -188,6 +188,58 @@ func TestHeartbeatLoopWriteFailure(t *testing.T) {
 			t.Fatal("failed heartbeat write produced no connection failure")
 		}
 	})
+}
+
+func TestHeartbeatLoopBlockedWriteDeadline(t *testing.T) {
+	for name, packet := range map[string]string{
+		"text":   "ping",
+		"native": "",
+	} {
+		t.Run(name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				client, _, closeTransport := heartbeatSockets(t)
+				defer closeTransport()
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+				startedAt := time.Now()
+				observation := observeHeartbeatLoop(ctx, client, packet, make(chan time.Time, 1))
+
+				synctest.Wait()
+				time.Sleep(5*time.Second - time.Nanosecond)
+				synctest.Wait()
+
+				select {
+				case <-observation.done:
+					t.Fatal("blocked heartbeat write ended before five seconds")
+				case err := <-observation.failed:
+					t.Fatalf("blocked heartbeat write failed early: %v", err)
+				default:
+				}
+
+				if observation.healthy != 0 {
+					t.Fatal("blocked heartbeat write confirmed health")
+				}
+
+				time.Sleep(time.Nanosecond)
+				synctest.Wait()
+				assertHeartbeatLoopStopped(t, observation, 0)
+
+				select {
+				case err := <-observation.failed:
+					var networkErr net.Error
+					if !errors.As(err, &networkErr) || !networkErr.Timeout() {
+						t.Fatalf("blocked heartbeat write lost its timeout cause: %v", err)
+					}
+				default:
+					t.Fatal("blocked heartbeat write produced no connection failure")
+				}
+
+				if ctx.Err() != nil || time.Since(startedAt) != 5*time.Second {
+					t.Fatalf("write deadline ended after %s with context error %v", time.Since(startedAt), ctx.Err())
+				}
+			})
+		})
+	}
 }
 
 func TestHeartbeatLoopCancellation(t *testing.T) {
@@ -203,7 +255,7 @@ func TestHeartbeatLoopCancellation(t *testing.T) {
 					cancel()
 				}
 				received := make(chan time.Time, 1)
-				observation := observeHeartbeatLoop(ctx, client, received)
+				observation := observeHeartbeatLoop(ctx, client, "ping", received)
 
 				synctest.Wait()
 				healthy := 0
