@@ -1,7 +1,9 @@
 package api
 
 import (
+	"encoding/json"
 	"log/slog"
+	"time"
 
 	"github.com/fanoxiz/crypto-monitor/contracts"
 )
@@ -35,4 +37,13 @@ func quoteFromBook(coin, exchange string, bids, asks [][]string) contracts.Quote
 		AskPrice: asks[0][0],
 		AskSize:  asks[0][1],
 	}
+}
+
+func sourceTime(timestamp json.Number) time.Time {
+	milliseconds, err := timestamp.Int64()
+	if err != nil || milliseconds <= 0 {
+		return time.Time{}
+	}
+
+	return time.UnixMilli(milliseconds).UTC()
 }

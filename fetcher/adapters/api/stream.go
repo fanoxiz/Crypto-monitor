@@ -10,6 +10,14 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+type streamMessage struct {
+	quote         contracts.Quote
+	dataCoin      string
+	confirmedCoin string
+	confirmedAll  bool
+	heartbeat     bool
+}
+
 var errRequestRejected = errors.New("exchange request rejected")
 
 func stream(ctx context.Context, exchange, endpoint string, coins []string, request any, heartbeat string, decode func([]byte) (streamMessage, error), save func(contracts.Quote) error, onHealthy func()) error {

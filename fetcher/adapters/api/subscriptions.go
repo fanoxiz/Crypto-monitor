@@ -4,17 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"time"
-
-	"github.com/fanoxiz/crypto-monitor/contracts"
 )
-
-type streamMessage struct {
-	quote         contracts.Quote
-	dataCoin      string
-	confirmedCoin string
-	confirmedAll  bool
-	heartbeat     bool
-}
 
 type instrumentStatus struct {
 	confirmed   bool
