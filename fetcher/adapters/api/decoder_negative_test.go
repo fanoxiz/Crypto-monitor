@@ -1,7 +1,6 @@
 package api
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"os"
@@ -41,26 +40,6 @@ func (f decoderMessageFixture) identity(fields map[string]any) map[string]any {
 	}
 
 	return fields["arg"].(map[string]any)
-}
-
-func mutateDecoderMessage(t *testing.T, original []byte, mutate func(map[string]any)) []byte {
-	t.Helper()
-
-	decoder := json.NewDecoder(bytes.NewReader(original))
-	decoder.UseNumber()
-	var fields map[string]any
-
-	if err := decoder.Decode(&fields); err != nil {
-		t.Fatal(err)
-	}
-
-	mutate(fields)
-	payload, err := json.Marshal(fields)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	return payload
 }
 
 func checkDecoderOutcome(t *testing.T, decode func([]byte) (streamMessage, error), payload []byte, want *contracts.Quote, wantDataError bool) {

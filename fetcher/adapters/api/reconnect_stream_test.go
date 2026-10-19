@@ -26,60 +26,10 @@ type reconnectStreamStore struct {
 	quotes []contracts.Quote
 }
 
-type reconnectLogBuffer struct {
-	mutex sync.Mutex
-	data  bytes.Buffer
-}
-
-func (b *reconnectLogBuffer) Write(data []byte) (int, error) {
-	b.mutex.Lock()
-	defer b.mutex.Unlock()
-
-	return b.data.Write(data)
-}
-
-func (b *reconnectLogBuffer) snapshot() []byte {
-	b.mutex.Lock()
-	defer b.mutex.Unlock()
-
-	return append([]byte(nil), b.data.Bytes()...)
-}
-
 func (s *reconnectStreamStore) SaveBatch(_ context.Context, quotes []contracts.Quote) error {
 	s.quotes = append(s.quotes, quotes...)
 
 	return nil
-}
-
-func assertReconnectSubscription(t *testing.T, packets <-chan heartbeatPacket, expected string) {
-	t.Helper()
-
-	packet := takeHeartbeatPacket(t, packets)
-	if packet.kind != websocket.TextMessage {
-		t.Fatalf("first packet after connecting was not a subscription: %#v", packet)
-	}
-
-	var actual, wanted any
-	if err := json.Unmarshal([]byte(packet.data), &actual); err != nil {
-		t.Fatal(err)
-	}
-	if err := json.Unmarshal([]byte(expected), &wanted); err != nil {
-		t.Fatal(err)
-	}
-
-	if !reflect.DeepEqual(actual, wanted) {
-		t.Fatalf("subscription = %s, want %s", packet.data, expected)
-	}
-}
-
-func sendReconnectPayload(t *testing.T, peer *websocket.Conn, payload []byte) {
-	t.Helper()
-
-	if err := peer.WriteMessage(websocket.TextMessage, payload); err != nil {
-		t.Fatal(err)
-	}
-
-	synctest.Wait()
 }
 
 func TestServiceReconnectsAdaptersWithFreshStreamState(t *testing.T) {

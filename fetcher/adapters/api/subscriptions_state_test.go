@@ -1,10 +1,7 @@
 package api
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
-	"errors"
 	"io"
 	"log/slog"
 	"os"
@@ -16,41 +13,6 @@ import (
 
 	"github.com/fanoxiz/crypto-monitor/contracts"
 )
-
-type subscriptionLogRecord struct {
-	Message       string    `json:"msg"`
-	Level         string    `json:"level"`
-	Coin          string    `json:"coin"`
-	Reason        string    `json:"reason"`
-	Confirmed     bool      `json:"confirmed"`
-	DataReceived  bool      `json:"data_received"`
-	QuoteReceived bool      `json:"quote_received"`
-	LastDataAt    time.Time `json:"last_data_at"`
-	LastQuoteAt   time.Time `json:"last_quote_at"`
-	Invalidated   bool      `json:"invalidated"`
-	DataAge       *int64    `json:"data_age"`
-	QuoteAge      *int64    `json:"quote_age"`
-}
-
-func subscriptionLogRecords(t *testing.T, logs *reconnectLogBuffer) []subscriptionLogRecord {
-	t.Helper()
-
-	decoder := json.NewDecoder(bytes.NewReader(logs.snapshot()))
-	var records []subscriptionLogRecord
-
-	for {
-		var record subscriptionLogRecord
-		err := decoder.Decode(&record)
-		if errors.Is(err, io.EOF) {
-			return records
-		}
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		records = append(records, record)
-	}
-}
 
 func TestInstrumentStatusTracksIndependentLifecycle(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
